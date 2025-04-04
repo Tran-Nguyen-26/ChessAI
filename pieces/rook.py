@@ -8,3 +8,18 @@ class Rook(Piece):
         moves = []
         row, col = self.position
         directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+
+        for direction in directions:
+            r, c = row, col
+            while 0 <= r + direction[0] < 8 and 0 <= c + direction[1] < 8:
+                r += direction[0]
+                c += direction[1]
+                if board[r][c] is None:
+                    moves.append((r, c))
+                elif board[r][c].color != self.color:
+                    moves.append((r, c))
+                    break
+                else:
+                    break
+            
+        return moves

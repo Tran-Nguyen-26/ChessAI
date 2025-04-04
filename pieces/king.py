@@ -9,3 +9,11 @@ class King(Piece):
         row, col = self.position
         king_moves = [(1, 0), (-1, 0), (0, 1), (0, -1),  
                     (1, 1), (-1, -1), (1, -1), (-1, 1)]
+
+        for move in king_moves:
+            r, c = row + move[0], col + move[1]
+            if 0 <= r < 8 and 0 <= c < 8:
+                if board[r][c] is None or board[r][c].color != self.color:
+                    moves.append((r, c))
+            
+        return moves
