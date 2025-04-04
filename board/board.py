@@ -34,3 +34,24 @@ class Board:
         self.board[7][7] = Rook("black", (7, 7))
         for i in range(8):
             self.board[6][i] = Pawn("black", (6, i))
+
+    def get_piece(self, position):
+        row, col = position
+        return self.board[row][col]
+        
+    def set_piece(self, piece, position):
+        row, col = position
+        self.board[row][col] = piece
+        piece.position = position
+    
+    def remove_piece(self,position):
+        row, col = position
+        self.board[row][col] = None
+    
+    def move_piece(self, start_pos, end_pos):
+        piece = self.get_piece(start_pos)
+        if piece and end_pos in piece.get_valid_moves(self):
+            self.remove_piece(start_pos)
+            self.set_piece(piece, end_pos)
+            return True
+        return False
