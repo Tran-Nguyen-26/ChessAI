@@ -54,8 +54,13 @@ class Board:
     
     def move_piece(self, start_pos, end_pos):
         piece = self.get_piece(start_pos)
+        target = self.get_piece(end_pos)
         if piece and end_pos in piece.get_valid_moves(self):
+            if target and target.color != piece.color:
+                self.remove_piece(end_pos)
+
             self.remove_piece(start_pos)
             self.set_piece(piece, end_pos)
             return True
+        
         return False

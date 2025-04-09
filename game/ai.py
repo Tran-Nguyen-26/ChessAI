@@ -1,6 +1,6 @@
 import copy
 from board import board
-from move import get_all_valid_moves
+from game.move import get_all_valid_moves
 
 def evaluate_board(board, color):
     piece_values = {
@@ -18,24 +18,30 @@ def evaluate_board(board, color):
             if piece:
                 value = piece_values.get(piece.__class__.__name__, 0)
                 score += value if piece.color == color else -value
+        
+    return score
 
-def minimax(board, depth, maxmizing_player, color):
+def minimax_alpha_beta(board, depth, alpha, beta, maxmizing_player, color):
     if depth == 0:
         return evaluate_board(board, color), None
     
     best_move = None
-    all_moves = get_all_valid_moves(board.board, color if maxmizing_player else opponent_color(color))
+    all_moves = get_all_valid_moves(board, color if maxmizing_player else opponent_color(color))
 
     if maxmizing_player:
         max_eval = float("-inf")
         for from_pos, to_pos in all_moves:
             new_board = copy.deepcopy(board)
             new_board.move_piece(from_pos, to_pos)
-            eval_score, _ = minimax(new_board, depth - 1, False, color)
+            eval_score, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, False, color)
             
             if eval_score > max_eval:
                 max_eval = eval_score
                 best_move = (from_pos, to_pos)
+
+            alpha = max(alpha, eval_score)
+            if beta <= alpha:
+                break
             
         return max_eval, best_move
     else:
@@ -43,11 +49,15 @@ def minimax(board, depth, maxmizing_player, color):
         for from_pos, to_pos in all_moves:
             new_board = copy.deepcopy(board)
             new_board.move_piece(from_pos, to_pos)
-            eval_score, _ = minimax(new_board, depth - 1, True, color)
+            eval_score, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, True, color)
 
             if eval_score < min_eval:
                 min_eval = eval_score
                 best_move = (from_pos, to_pos)
+            
+            beta = min(beta, eval_score)
+            if beta <= alpha:
+                break
             
         return min_eval, best_move
     

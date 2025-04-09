@@ -9,17 +9,20 @@ class Pawn(Piece):
         row, col = self.position
         direction = -1 if self.color == "white" else 1 #Tốt trắng đi lên, tốt đen đi xuống
 
-        if board[row + direction][col] is None:
+        if board.get_piece((row + direction,col)) is None:
             moves.append((row + direction, col))
 
         if (self.color == "white" and row == 6) or (self.color == "black" and row == 1):
-            if board[row + 2 * direction][col] is None:
+            if board.get_piece((row + 2 * direction,col)) is None:
                 moves.append((row + 2 * direction, col))
         
         for d_col in [-1, 1]:
+            new_row = row + direction
+            new_col = col + d_col
             if 0 <= col + d_col < 8: #kiểm tra cột không nằm ngoài bàn cờ
-                if board[row + direction][col + d_col] is not None:
-                    moves.append((row, direction, col + d_col))
+                target = board.get_piece((row + direction,col + d_col))
+                if target is not None and target.color != self.color:
+                    moves.append((new_row, new_col))
         
         return moves
         

@@ -10,14 +10,16 @@ def is_enemy(board, pos, color):
     row, col = pos
     target = board[row][col]
     return target is not None and target.color != color
+
 def get_all_valid_moves(board, color):
-    moves = []
+    all_moves = []
     for row in range(8):
         for col in range(8):
-            piece = board[row][col]
+            piece = board.get_piece((row, col))
             if piece and piece.color == color:
-                for move in piece.get_valid_moves(board):
-                    moves.append((row, col), move)
+                valid_moves = piece.get_valid_moves(board)
+                for move in valid_moves:
+                    all_moves.append(((row, col), move))
                 
-    return moves
+    return all_moves
 
