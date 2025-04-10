@@ -63,7 +63,7 @@ def draw_pieces(win, board_obj, piece_images):
 def start_game_ui():    
     pygame.init()
     win = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("ChessAI - Pygame UI")
+    pygame.display.set_caption("ChessAI")
 
     piece_images = load_piece_images("C:/ChessAI/assets/images/Chess_Pieces.png")
     board = Board()
@@ -74,6 +74,8 @@ def start_game_ui():
 
     current_turn = PLAYER_COLOR
     ai_thinking = False
+    game_over = False
+    winner = None
 
     while running:
         clock.tick(60)
@@ -81,16 +83,25 @@ def start_game_ui():
             if event.type == pygame.QUIT:
                 running = False
 
-            elif event.type == pygame.MOUSEBUTTONDOWN and not ai_thinking:
+            elif event.type == pygame.MOUSEBUTTONDOWN and not ai_thinking and not game_over:
                 if controller.get_current_turn() == "white":
                     x, y = pygame.mouse.get_pos()
                     row = y // 80
                     col = x // 80
-                    moved = controller.handle_click(board, (row, col))
-                    if moved:
-                        current_turn = AI_COLOR
-                        ai_thinking = True
-                        pygame.time.set_timer(AI_MOVE_EVENT, 100)
+                    
+                    result = controller.handle_click(board, (row, col))
+
+                    if result is not None:
+                        moved, captured_king = result
+
+                        if moved:
+                            if captured_king == "black":
+                                game_over = True
+                                winner = "white"
+                                print("Player win")
+                            else:
+                                ai_thinking = True
+                                pygame.time.set_timer(AI_MOVE_EVENT, 100)
 
             elif event.type == AI_MOVE_EVENT and controller.get_current_turn() == "black":
                 pygame.time.set_timer(AI_MOVE_EVENT, 0)
@@ -98,11 +109,17 @@ def start_game_ui():
                 eval_score, ai_move = minimax_alpha_beta(board, depth, float('-inf'), float('inf'), True, AI_COLOR)
 
                 if ai_move:
-                    board.move_piece(ai_move[0], ai_move[1])
-                    controller.switch_turn()
+                    moved, captured_king = board.move_piece(ai_move[0], ai_move[1])
+
+                    if moved:
+                        controller.switch_turn()
+                        if captured_king == "white":
+                            game_over = True
+                            winner = "black"
+                            print("AI win")
+    
                 ai_thinking = False
                 controller.reset_selection()
-                print("Current turn after AI move:", controller.get_current_turn())
             
         draw_board(win, controller)
         draw_pieces(win, board, piece_images)

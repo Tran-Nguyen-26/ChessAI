@@ -55,12 +55,20 @@ class Board:
     def move_piece(self, start_pos, end_pos):
         piece = self.get_piece(start_pos)
         target = self.get_piece(end_pos)
-        if piece and end_pos in piece.get_valid_moves(self):
-            if target and target.color != piece.color:
-                self.remove_piece(end_pos)
-
-            self.remove_piece(start_pos)
-            self.set_piece(piece, end_pos)
-            return True
         
-        return False
+        if not piece or end_pos not in piece.get_valid_moves(self):
+            return False, None
+
+        king_captured = False
+        captured_king_color = None
+        if target and target.__class__.__name__ == "King":
+            king_captured = True
+            captured_king_color = target.color
+
+        if target and target.color != piece.color:
+            self.remove_piece(end_pos)
+        
+        self.remove_piece(start_pos)
+        self.set_piece(piece, end_pos)
+        
+        return True, captured_king_color
