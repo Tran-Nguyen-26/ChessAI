@@ -62,6 +62,8 @@ def draw_pieces(win, board_obj, piece_images):
 
 def start_game_ui():    
     pygame.init()
+    pygame.mixer.init()
+    move_sound = pygame.mixer.Sound("C:/ChessAI/assets/sounds/move_piece.mp3")
     win = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("ChessAI")
 
@@ -95,6 +97,7 @@ def start_game_ui():
                         moved, captured_king = result
 
                         if moved:
+                            move_sound.play()
                             if captured_king == "black":
                                 game_over = True
                                 winner = "white"
@@ -112,6 +115,7 @@ def start_game_ui():
                     moved, captured_king = board.move_piece(ai_move[0], ai_move[1])
 
                     if moved:
+                        move_sound.play()
                         controller.switch_turn()
                         if captured_king == "white":
                             game_over = True
