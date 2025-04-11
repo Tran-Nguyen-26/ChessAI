@@ -5,6 +5,7 @@ class Piece:
     def __init__(self, color, position):
         self._color = color
         self._position = position
+        self.has_moved = False
     
     @property
     def color(self):

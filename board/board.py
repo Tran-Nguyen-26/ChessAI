@@ -59,10 +59,28 @@ class Board:
         if not piece or end_pos not in piece.get_valid_moves(self):
             return False, None
 
-        king_captured = False
+        is_castling = False
+        if piece.__class__.__name__ == "King":
+            start_row, start_col = start_pos
+            end_row, end_col = end_pos
+
+            if end_col - start_col == 2:
+                is_castling = True
+                rook = self.get_piece((start_row, 7))
+                self.remove_piece((start_row, 7))
+                self.set_piece(rook, (start_row, start_col + 1))
+                rook.has_moved = True
+            
+            elif start_col - end_col == 2:
+                is_castling = True
+                rook = self.get_piece((start_row, 0))
+                self.remove_piece((start_row, 0))
+                self.set_piece(rook, (start_row, start_col - 1))
+                rook.has_moved = True
+
+
         captured_king_color = None
         if target and target.__class__.__name__ == "King":
-            king_captured = True
             captured_king_color = target.color
 
         if target and target.color != piece.color:
@@ -70,5 +88,7 @@ class Board:
         
         self.remove_piece(start_pos)
         self.set_piece(piece, end_pos)
+
+        piece.has_moved = True
         
         return True, captured_king_color
