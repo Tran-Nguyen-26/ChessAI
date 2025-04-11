@@ -72,7 +72,7 @@ def start_game_ui():
     running = True
     clock = pygame.time.Clock()
 
-    current_turn = PLAYER_COLOR
+    
     ai_thinking = False
     game_over = False
     winner = None
