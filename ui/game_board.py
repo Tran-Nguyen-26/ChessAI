@@ -1,7 +1,14 @@
 import pygame
+import os
 from board.board import Board
 from ui.game_controls import GameController
 from game.ai import evaluate_board, get_all_valid_moves, minimax_alpha_beta
+
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+
+# Đường dẫn tới các file cần thiết
+SOUND_PATH = os.path.join(BASE_DIR, "assets", "sounds", "move_piece.mp3")
+IMAGE_PATH = os.path.join(BASE_DIR, "assets", "images", "Chess_Pieces.png")
 
 WIDTH, HEIGHT = 640, 640
 ROWS, COLS = 8, 8
@@ -63,11 +70,11 @@ def draw_pieces(win, board_obj, piece_images):
 def start_game_ui():    
     pygame.init()
     pygame.mixer.init()
-    move_sound = pygame.mixer.Sound("C:/ChessAI/assets/sounds/move_piece.mp3")
+    move_sound = pygame.mixer.Sound(SOUND_PATH)
     win = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("ChessAI")
 
-    piece_images = load_piece_images("C:/ChessAI/assets/images/Chess_Pieces.png")
+    piece_images = load_piece_images(IMAGE_PATH)
     board = Board()
     controller = GameController()
 
