@@ -115,7 +115,7 @@ def start_game_ui():
 
             elif event.type == AI_MOVE_EVENT and controller.get_current_turn() == "black":
                 pygame.time.set_timer(AI_MOVE_EVENT, 0)
-                depth = 3
+                depth = 4
                 eval_score, ai_move = minimax_alpha_beta(board, depth, float('-inf'), float('inf'), True, AI_COLOR)
 
                 if ai_move:
