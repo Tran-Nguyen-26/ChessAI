@@ -146,11 +146,6 @@ def evaluate_board(board, color):
                         position_score += pos_value
                     else:
                         position_score -= pos_value
-                    
-                    if piece.color == color:
-                        position_score += pos_value
-                    else:
-                        position_score -= pos_value
                 
                 if piece_type == "Pawn":
                     # Penalize doubled pawns
