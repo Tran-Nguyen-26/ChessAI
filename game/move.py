@@ -1,3 +1,4 @@
+# Kiểm tra 1 vị trí có nằm trong bàn cờ không
 def is_in_bounds(pos):
     row, col = pos
     return 0 <= row < 8 and 0 <= col < 8
