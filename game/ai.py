@@ -1,6 +1,8 @@
 import copy
 from board import board
 from game.move import get_all_valid_moves
+from pieces import queen
+from pieces.pawn import Pawn
 
 def evaluate_board(board, color):
     #Đánh giá bàn cờ
@@ -259,6 +261,12 @@ def minimax_alpha_beta(board, depth, alpha, beta, maxmizing_player, color):
             # Với mỗi nước đi tạo một bàn cờ mới sau khi đi nước đó
             new_board = copy.deepcopy(board)
             new_board.move_piece(from_pos, to_pos)
+
+            piece = new_board.get_piece(to_pos)
+            if isinstance(piece, Pawn):
+                if (piece.color == "white" and to_pos[0] == 0) or (piece.color == "black" and to_pos[0] == 7):
+                    new_board.set_piece(queen.Queen(piece.color), to_pos)
+
             # Đệ quy để đánh giá nước đi tiếp theo ở tầng sâu hơn trong cây tìm kiếm
             eval_score, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, False, color)
             
@@ -277,7 +285,14 @@ def minimax_alpha_beta(board, depth, alpha, beta, maxmizing_player, color):
         for from_pos, to_pos in all_moves:
             new_board = copy.deepcopy(board)
             new_board.move_piece(from_pos, to_pos)
-            eval_score, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, True, color)
+
+            piece = new_board.get_piece(to_pos)
+            if isinstance(piece, Pawn):
+                if (piece.color == "white" and to_pos[0] == 0) or (piece.color == "black" and to_pos[0] == 7):
+                    new_board.set_piece(queen.Queen(piece.color), to_pos)
+                    
+            # Đệ quy để đánh giá nước đi tiếp theo ở tầng sâu hơn trong cây tìm kiếm
+            eval_score, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, False, color)
 
             if eval_score < min_eval:
                 min_eval = eval_score

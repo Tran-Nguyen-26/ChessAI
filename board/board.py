@@ -13,6 +13,8 @@ class Board:
             "white": None,
             "black": None
         }
+        self.promote_piece = None
+        self.promote_position = None
 
     def _initialize_pieces(self):
         #black
@@ -59,6 +61,7 @@ class Board:
         if not piece or end_pos not in piece.get_valid_moves(self):
             return False, None
 
+        #　Xử lí nhập thành
         is_castling = False
         if piece.__class__.__name__ == "King":
             start_row, start_col = start_pos
@@ -90,5 +93,38 @@ class Board:
         self.set_piece(piece, end_pos)
 
         piece.has_moved = True
-        
+    
+        # Xử lí điều kiện phong quân
+        if piece.__class__.__name__ == "Pawn":
+            end_row, end_col = end_pos
+            if (piece.color == "white" and end_row == 0) or (piece.color == "black" and end_row == 7):
+                self.set_piece(Queen(piece.color, end_pos), end_pos)
+            
         return True, captured_king_color
+
+    def promote_pawn(self, piece_type):
+        if not self.promote_piece or not self.promote_position:
+            return False
+        
+        position = self.promote_position
+        color = self.promote_piece.color
+
+        new_piece = None
+        if piece_type == "queen":
+            new_piece = Queen(color, position)
+        elif piece_type == "rook":
+            new_piece = Rook(color, position)
+        elif piece_type == "bishop":
+            new_piece = Bishop(color, position)
+        elif piece_type == "knight":
+            new_piece = Knight(color, position)
+        else:
+            return False
+        
+        self.remove_piece(position)
+        self.set_piece(new_piece, position)
+
+        self.promote_piece = None
+        self.promote_position = None
+
+        return True

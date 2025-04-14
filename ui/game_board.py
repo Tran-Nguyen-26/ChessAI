@@ -66,6 +66,26 @@ def draw_pieces(win, board_obj, piece_images):
                 name = f"{piece.color}_{piece.__class__.__name__.lower()}"
                 win.blit(piece_images[name], (col * SQUARE_SIZE, row * SQUARE_SIZE))
 
+def draw_promotion_dialog(win, color, position, piece_images):
+    _, col = position
+    pieces = ["queen", "rook", "bishop", "knight"]
+    
+    if color == "white":
+        start_row = 1
+    else:
+        start_row = 6
+
+    dialog_width = SQUARE_SIZE
+    dialog_height = 4 * SQUARE_SIZE
+    pygame.draw.rect(win, (230, 230, 230), (col * SQUARE_SIZE, start_row * SQUARE_SIZE, dialog_width, dialog_height))
+    pygame.draw.rect(win, (100, 100, 100), (col * SQUARE_SIZE, start_row * SQUARE_SIZE, dialog_width, dialog_height), 2)
+
+    for i, piece_type in enumerate(pieces):
+        piece_img = piece_images[f"{color}_{piece_type}"]
+        win.blit(piece_img, (col * SQUARE_SIZE, (start_row + i) * SQUARE_SIZE))
+
+        pygame.draw.rect(win, (150, 150, 150), (col * SQUARE_SIZE, (start_row + i) * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 1)
+
 
 def start_game_ui():    
     pygame.init()
@@ -84,7 +104,9 @@ def start_game_ui():
     
     ai_thinking = False
     game_over = False
-    winner = None
+    winner = Nonewinner = None
+
+    promotion_active = False
 
     while running:
         clock.tick(60)
@@ -92,28 +114,66 @@ def start_game_ui():
             if event.type == pygame.QUIT:
                 running = False
 
-            elif event.type == pygame.MOUSEBUTTONDOWN and not ai_thinking and not game_over:
-                if controller.get_current_turn() == "white":
-                    x, y = pygame.mouse.get_pos()
-                    row = y // 80
-                    col = x // 80
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = pygame.mouse.get_pos()
+                row = y // SQUARE_SIZE
+                col = x // SQUARE_SIZE
+
+                # Xử lý phong quân nếu đang hiển thị dialog
+                if promotion_active and board.promote_piece:
+                    promotion_col = board.promote_position[1]
                     
-                    result = controller.handle_click(board, (row, col))
+                    # Kiểm tra nếu click vào đúng cột của quân phong
+                    if col == promotion_col:
+                        color = board.promote_piece.color
+                        promotion_row_start = 1 if color == "white" else 3
+                        
+                        # Kiểm tra click vào khu vực chọn quân
+                        if promotion_row_start <= row < promotion_row_start + 4:
+                            piece_index = row - promotion_row_start
+                            promotion_pieces = ["queen", "rook", "bishop", "knight"]
+                            
+                            if piece_index < len(promotion_pieces):
+                                # Thực hiện phong quân
+                                if board.promote_pawn(promotion_pieces[piece_index]):
+                                    move_sound.play()
+                                    promotion_active = False
+                                    
+                                    # Chuyển lượt nếu là người chơi
+                                    if controller.get_current_turn() == PLAYER_COLOR:
+                                        controller.switch_turn()
+                                        # Bắt đầu lượt AI
+                                        if controller.get_current_turn() == AI_COLOR:
+                                            ai_thinking = True
+                                            pygame.time.set_timer(AI_MOVE_EVENT, 100)
+                                    
+                        continue  # Bỏ qua các xử lý click khác
 
-                    if result is not None:
-                        moved, captured_king = result
+                # Xử lý click thông thường nếu không đang phong quân
+                if not promotion_active and not ai_thinking and not game_over:
+                    if controller.get_current_turn() == PLAYER_COLOR:
+                        result = controller.handle_click(board, (row, col))
+                        
+                        if result:
+                            moved, captured_king = result
+                            
+                            if moved:
+                                move_sound.play()
+                                
+                                # Kiểm tra nếu cần phong quân
+                                if board.promote_piece:
+                                    promotion_active = True
+                                    continue  # Không chuyển lượt chơi cho đến khi phong quân xong
+                                    
+                                if captured_king == AI_COLOR:
+                                    game_over = True
+                                    winner = PLAYER_COLOR
+                                    print("Player win")
+                                else:
+                                    ai_thinking = True
+                                    pygame.time.set_timer(AI_MOVE_EVENT, 100)
 
-                        if moved:
-                            move_sound.play()
-                            if captured_king == "black":
-                                game_over = True
-                                winner = "white"
-                                print("Player win")
-                            else:
-                                ai_thinking = True
-                                pygame.time.set_timer(AI_MOVE_EVENT, 100)
-
-            elif event.type == AI_MOVE_EVENT and controller.get_current_turn() == "black":
+            elif event.type == AI_MOVE_EVENT and controller.get_current_turn() == AI_COLOR:
                 pygame.time.set_timer(AI_MOVE_EVENT, 0)
                 depth = 4
                 eval_score, ai_move = minimax_alpha_beta(board, depth, float('-inf'), float('inf'), True, AI_COLOR)
@@ -124,7 +184,9 @@ def start_game_ui():
                     if moved:
                         move_sound.play()
                         controller.switch_turn()
-                        if captured_king == "white":
+
+                        # Kiểm tra nếu vua bị ăn
+                        if captured_king == PLAYER_COLOR:
                             game_over = True
                             winner = "black"
                             print("AI win")
@@ -134,6 +196,8 @@ def start_game_ui():
             
         draw_board(win, controller)
         draw_pieces(win, board, piece_images)
+
+        if promotion_active and board.promote_piece:
+            draw_promotion_dialog(win, board.promote_piece.color, board.promote_position, piece_images)
+
         pygame.display.flip()
-    
-    pygame.quit()

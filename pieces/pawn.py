@@ -25,4 +25,5 @@ class Pawn(Piece):
                     moves.append((new_row, new_col))
         
         return moves
+    
         
