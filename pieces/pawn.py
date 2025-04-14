@@ -13,7 +13,7 @@ class Pawn(Piece):
             moves.append((row + direction, col))
 
         if (self.color == "white" and row == 6) or (self.color == "black" and row == 1):
-            if board.get_piece((row + 2 * direction,col)) is None:
+            if board.get_piece((row + 2 * direction,col)) is None and board.get_piece((row + direction, col)) is None:
                 moves.append((row + 2 * direction, col))
         
         for d_col in [-1, 1]:
