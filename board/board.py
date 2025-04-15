@@ -13,6 +13,7 @@ class Board:
             "white": None,
             "black": None
         }
+        self.en_passant_target = None  # Thuộc tính để theo dõi ô mục tiêu en passant
 
     def _initialize_pieces(self):
         #black
@@ -79,16 +80,31 @@ class Board:
                 rook.has_moved = True
 
 
+        # Xử lý bắt qua đường (en passant)
         captured_king_color = None
-        if target and target.__class__.__name__ == "King":
-            captured_king_color = target.color
-
+        if isinstance(piece, Pawn) and end_pos == self.en_passant_target:
+            direction = -1 if piece.color == "white" else 1
+            captured_row = end_pos[0] + direction  # Ô của tốt bị bắt
+            captured_pos = (captured_row, end_pos[1])
+            captured_piece = self.get_piece(captured_pos)
+            if captured_piece and isinstance(captured_piece, Pawn) and captured_piece.color != piece.color:
+                self.remove_piece(captured_pos)
+        
+        # Di chuyển quân cờ
+        target = self.get_piece(end_pos)
         if target and target.color != piece.color:
+            if target.__class__.__name__ == "King":
+                captured_king_color = target.color
             self.remove_piece(end_pos)
         
         self.remove_piece(start_pos)
         self.set_piece(piece, end_pos)
-
         piece.has_moved = True
-        
+
+        # Cập nhật en_passant_target
+        if isinstance(piece, Pawn) and abs(start_pos[0] - end_pos[0]) == 2:
+            self.en_passant_target = ((start_pos[0] + end_pos[0]) // 2, end_pos[1])
+        else:
+            self.en_passant_target = None
+
         return True, captured_king_color

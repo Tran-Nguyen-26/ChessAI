@@ -23,6 +23,11 @@ class Pawn(Piece):
                 target = board.get_piece((row + direction,col + d_col))
                 if target is not None and target.color != self.color:
                     moves.append((new_row, new_col))
+                # Logic bắt qua đường
+                if board.en_passant_target is not None:
+                    en_row, en_col = board.en_passant_target
+                    if en_row == row + direction and en_col == col + d_col:
+                        moves.append((en_row, en_col))
         
         return moves
         

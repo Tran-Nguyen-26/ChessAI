@@ -19,6 +19,7 @@ class Piece:
     @position.setter
     def position(self, new_position):
         self._position = new_position
+        self._has_moved = True
 
     @abstractmethod
     def get_valid_moves(self, board):
