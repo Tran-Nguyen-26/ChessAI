@@ -4,6 +4,9 @@ from game.move import get_all_valid_moves
 from pieces import queen
 from pieces.pawn import Pawn
 
+# Bảng ghi nhớ vị trí để tránh tính toán lại các vị trí đã đánh giá
+transposition_table = {}
+
 def evaluate_board(board, color):
     #Đánh giá bàn cờ
     piece_values = {
@@ -102,140 +105,98 @@ def evaluate_board(board, color):
         "King": king_middlegame
     }
 
+    # Tối ưu: Thay vì đếm quân mỗi lần, ta sẽ đếm một lần trong quá trình đánh giá
     piece_count = 0
     pieces_by_color = {"white": 0, "black": 0}
-    # Đếm số quân trên bàn và phân loại theo màu
-    for row in board.board:
-        for piece in row:
+    
+    # Tối ưu: Khởi tạo các điểm số trước vòng lặp để tránh tính toán nhiều lần
+    material_score = 0
+    position_score = 0
+    pawn_structure_score = 0
+    development_score = 0
+    center_control_score = 0
+    king_safety_score = 0
+    
+    # Tối ưu: Khởi tạo mảng đếm quân tốt
+    pawn_columns = {"white": [0] * 8, "black": [0] * 8}
+    
+    # Đếm số quân tốt theo cột trước
+    for y in range(8):
+        for x in range(8):
+            piece = board.get_piece((y, x))
             if piece:
                 piece_count += 1
                 pieces_by_color[piece.color] += 1
-    #Nếu còn dưới 10 quân là giai đoạn cuối game
-    is_endgame = piece_count <= 10
+                if piece.__class__.__name__ == "Pawn":
+                    pawn_columns[piece.color][x] += 1
 
+    # Nếu còn dưới 10 quân là giai đoạn cuối game
+    is_endgame = piece_count <= 10
     if is_endgame:
         position_tables["King"] = king_endgame
-    # Điểm dựa trên số quân còn lại
-    material_score = 0 
-    # Điểm dựa trên vị trí từng quân
-    position_score = 0
-    # Điểm cấu trúc Tốt
-    pawn_structure_score = 0
-    #     pawn_columns = {
-    #     "white": [0, 0, 0, 0, 0, 0, 0, 0],
-    #     "black": [0, 0, 0, 0, 0, 0, 0, 0]
-    # }
-    pawn_columns = {color: [0] * 8 for color in ["white", "black"]}
-    # Đếm số lượng quân tốt theo cờ và theo cột
+    
+    # Tối ưu: Lưu các ô trung tâm để kiểm tra nhanh hơn
+    center_squares = {(3, 3), (3, 4), (4, 3), (4, 4)}
+    
+    # Đánh giá chính
     for y in range(8):
         for x in range(8):
             piece = board.get_piece((y, x))
-            if piece and piece.__class__.__name__ == "Pawn":
-                pawn_columns[piece.color][x] += 1
-    
-    for y in range(8):
-        for x in range(8):
-            piece = board.get_piece((y, x))
-            if piece:
-                piece_type = piece.__class__.__name__
-                value = piece_values.get(piece_type, 0)
+            if not piece:
+                continue
                 
-                # Nếu là quân mình thì cộng điểm, quân địch thì trừ điểm
-                if piece.color == color:
-                    material_score += value
-                else:
-                    material_score -= value
-
-                # Tính điểm vị trí các quân
-                if piece_type in position_tables:
-                    if piece.color == "white":
-                        pos_y = y
-                    else:
-                        pos_y = 7 - y # Quân đen
-                    pos_value = position_tables[piece_type][pos_y][x]
- 
-                    if piece.color == color:
-                        position_score += pos_value
-                    else:
-                        position_score -= pos_value
+            piece_type = piece.__class__.__name__
+            value = piece_values.get(piece_type, 0)
+            
+            # Nếu là quân mình thì cộng điểm, quân địch thì trừ điểm
+            multiplier = 1 if piece.color == color else -1
+            material_score += value * multiplier
+            
+            # Tính điểm vị trí các quân
+            if piece_type in position_tables:
+                pos_y = y if piece.color == "white" else 7 - y
+                pos_value = position_tables[piece_type][pos_y][x]
+                position_score += pos_value * multiplier
+            
+            # Đánh giá cấu trúc con Tốt
+            if piece_type == "Pawn":
+                # Penalize doubled pawns (trừ điểm nếu có các quân tốt chồng lên nhau)
+                if pawn_columns[piece.color][x] > 1:
+                    pawn_structure_score -= 20 * multiplier
                 
-                # Đánh giá cấu trúc con Tốt
-                if piece_type == "Pawn":
-                    # Penalize doubled pawns (Có nhiều hơn 2 con Tốt cùng màu trên một cột thì trừ điểm, không thì cộng điểm)
-                    if pawn_columns[piece.color][x] > 1:
-                        if piece.color == color:
-                            pawn_structure_score -= 20
-                        else:
-                            pawn_structure_score += 20
-                    
-                    # Penalize isolated pawns (Nếu 2 bên cột x-1,x+1 không có tốt thì tốt bị cô lập => trừ điểm)
-                    is_isolated = True
-                    for adj_x in [x-1, x+1]:
-                        if 0 <= adj_x < 8 and pawn_columns[piece.color][adj_x] > 0:
-                            is_isolated = False
-                            break
-                    
-                    if is_isolated:
-                        if piece.color == color:
-                            pawn_structure_score -= 15
-                        else:
-                            pawn_structure_score += 15
-                        
-    # Chấm điểm cho giai đoạn khai cuộc, tức là xem quân Mã và quân Xe đã rời khỏi vị trí xuất phát chưa
-    development_score = 0
-    if piece_count > 24:  # Early game(Giai đoạn khai cuộc)
-        for piece_type in ["Knight", "Bishop"]:
-            for y in range(8):
-                for x in range(8):
-                    piece = board.board[y][x]
-                    if piece and piece.__class__.__name__ == piece_type:
-                        # Nếu quân trắng không ở vị trí y = 7 nghĩa là đã khai triển thì cộng điểm
-                        if piece.color == "white" and y != 7:
-                            if piece.color == color:
-                                development_score += 10
-                            else:
-                                development_score -= 10
-                        # Nếu quân đen không ở vị trí y = 0 nghĩa là đã khai triển thì cộng điểm.
-                        elif piece.color == "black" and y != 0:
-                            if piece.color == color:
-                                development_score += 10
-                            else:
-                                development_score -= 10
-    
-    # Tính điểm nếu kiểm soát các ô trung tâm của bàn cờ.
-    center_control_score = 0
-    center_squares = [(3, 3), (3, 4), (4, 3), (4, 4)] # Các ô trung tâm
-    for cy, cx in center_squares:
-        # Duyệt qua các ô trung tâm nếu quân ở đó thì cộng điểm.
-        piece = board.board[cy][cx]
-        if piece:
-            if piece.color == color:
-                center_control_score += 10
-            else:
-                center_control_score -= 10
-    
-    # Đánh giá mức độ an toàn của vua dựa trên số quân xung quanh
-    king_safety_score = 0
-    for y in range(8):
-        for x in range(8):
-            piece = board.board[y][x]
-            if piece and piece.__class__.__name__ == "King": #Tìm vị trí quân vua
-                # Đếm số quân bảo vệ vua
+                # Penalize isolated pawns (trừ điểm cho quân tốt bị cô lập)
+                is_isolated = True
+                for adj_x in [x-1, x+1]:
+                    if 0 <= adj_x < 8 and pawn_columns[piece.color][adj_x] > 0:
+                        is_isolated = False
+                        break
+                
+                if is_isolated:
+                    pawn_structure_score -= 15 * multiplier
+            
+            # Chấm điểm cho giai đoạn khai cuộc
+            if piece_count > 24 and piece_type in ["Knight", "Bishop"]:
+                if (piece.color == "white" and y != 7) or (piece.color == "black" and y != 0):
+                    development_score += 10 * multiplier
+            
+            # Tính điểm kiểm soát trung tâm
+            if (y, x) in center_squares:
+                center_control_score += 10 * multiplier
+            
+            # Đánh giá an toàn của vua
+            if piece_type == "King":
                 protectors = 0
-                king_y, king_x = y, x
                 for dy in [-1, 0, 1]:
                     for dx in [-1, 0, 1]:
-                        ny, nx = king_y + dy, king_x + dx
+                        ny, nx = y + dy, x + dx
                         if 0 <= ny < 8 and 0 <= nx < 8 and (dy != 0 or dx != 0):
-                            neighbor = board.board[ny][nx]
+                            neighbor = board.get_piece((ny, nx))
                             if neighbor and neighbor.color == piece.color:
                                 protectors += 1
                 
-                if piece.color == color:
-                    king_safety_score += protectors * 5
-                else:
-                    king_safety_score -= protectors * 5
+                king_safety_score += protectors * 5 * multiplier
     
+    # Tối ưu: Chỉ tính toán một lần tổng điểm cuối cùng
     final_score = (
         material_score * 1.0 +          # Material is most important
         position_score * 0.5 +          # Position is important but secondary
@@ -247,15 +208,106 @@ def evaluate_board(board, color):
 
     return final_score
 
-def minimax_alpha_beta(board, depth, alpha, beta, maxmizing_player, color):
-    # Nếu đã tìm đến độ sâu giới hạn thì không đi sâu nữa, đánh giá điểm của bàn cờ hiện tại và trả về
+# Tối ưu: Thêm hàm để sắp xếp các nước đi theo độ ưu tiên
+def order_moves(moves, board, color):
+    """Sắp xếp các nước đi để cải thiện hiệu quả cắt tỉa alpha-beta"""
+    move_scores = []
+    for from_pos, to_pos in moves:
+        score = 0
+        moving_piece = board.get_piece(from_pos)
+        captured_piece = board.get_piece(to_pos)
+        
+        # Ưu tiên nước ăn quân
+        if captured_piece:
+            piece_values = {"Pawn": 10, "Knight": 32, "Bishop": 33, "Rook": 50, "Queen": 90, "King": 2000}
+            moving_value = piece_values.get(moving_piece.__class__.__name__, 0)
+            captured_value = piece_values.get(captured_piece.__class__.__name__, 0)
+            score = 10 * captured_value - moving_value
+        
+        # Ưu tiên phong Hậu
+        if isinstance(moving_piece, Pawn):
+            if (moving_piece.color == "white" and to_pos[0] == 0) or (moving_piece.color == "black" and to_pos[0] == 7):
+                score += 900  # Giá trị của Hậu
+        
+        # Ưu tiên kiểm soát trung tâm
+        if to_pos in [(3, 3), (3, 4), (4, 3), (4, 4)]:
+            score += 5
+            
+        move_scores.append((score, (from_pos, to_pos)))
+    
+    # Sắp xếp giảm dần theo điểm
+    move_scores.sort(reverse=True)
+    return [move for _, move in move_scores]
+
+# Tối ưu: Thêm tìm kiếm tĩnh (quiescence search) cho các nước ăn quân
+def quiescence_search(board, alpha, beta, color, depth=3):
+    """Tìm kiếm tĩnh để tránh hiệu ứng chân trời"""
+    stand_pat = evaluate_board(board, color)
+    
     if depth == 0:
-        return evaluate_board(board, color), None
+        return stand_pat
+        
+    if stand_pat >= beta:
+        return beta
+    
+    if alpha < stand_pat:
+        alpha = stand_pat
+        
+    all_moves = get_all_valid_moves(board, color)
+    capture_moves = []
+    
+    # Chỉ xét các nước ăn quân
+    for from_pos, to_pos in all_moves:
+        if board.get_piece(to_pos) is not None:
+            capture_moves.append((from_pos, to_pos))
+    
+    capture_moves = order_moves(capture_moves, board, color)
+    
+    for from_pos, to_pos in capture_moves:
+        new_board = copy.deepcopy(board)
+        new_board.move_piece(from_pos, to_pos)
+        
+        piece = new_board.get_piece(to_pos)
+        if isinstance(piece, Pawn):
+            if (piece.color == "white" and to_pos[0] == 0) or (piece.color == "black" and to_pos[0] == 7):
+                new_board.set_piece(queen.Queen(piece.color), to_pos)
+                
+        score = -quiescence_search(new_board, -beta, -alpha, opponent_color(color), depth - 1)
+        
+        if score >= beta:
+            return beta
+            
+        if score > alpha:
+            alpha = score
+    
+    return alpha
+
+def minimax_alpha_beta(board, depth, alpha, beta, maximizing_player, color):
+    # Tạo khóa hash từ trạng thái bàn cờ để kiểm tra xem đã tính chưa
+    board_hash = str(board.board)  # Đơn giản hóa, trong thực tế nên dùng hash function tốt hơn
+    
+    # Kiểm tra trong bảng ghi nhớ
+    if board_hash in transposition_table and transposition_table[board_hash][0] >= depth:
+        stored_depth, stored_value, stored_move = transposition_table[board_hash]
+        return stored_value, stored_move
+    
+    # Nếu đã tìm đến độ sâu giới hạn thì dùng tìm kiếm tĩnh để đánh giá
+    if depth == 0:
+        eval_score = quiescence_search(board, alpha, beta, color)
+        return eval_score, None
     
     best_move = None
-    all_moves = get_all_valid_moves(board, color if maxmizing_player else opponent_color(color))
-    # Lấy tất cả nước đi hợp lệ của bên hiện tại *
-    if maxmizing_player:
+    all_moves = get_all_valid_moves(board, color if maximizing_player else opponent_color(color))
+    
+    # Tối ưu: Sắp xếp các nước đi để cắt tỉa hiệu quả hơn
+    all_moves = order_moves(all_moves, board, color if maximizing_player else opponent_color(color))
+    
+    # Không có nước đi hợp lệ, trả về giá trị đánh giá hiện tại
+    if not all_moves:
+        # Giả định là hòa cờ (không có hàm kiểm tra chiếu tướng trong code gốc)
+        return 0, None
+    
+    if maximizing_player:
         max_eval = float("-inf")
         for from_pos, to_pos in all_moves:
             # Với mỗi nước đi tạo một bàn cờ mới sau khi đi nước đó
@@ -267,7 +319,7 @@ def minimax_alpha_beta(board, depth, alpha, beta, maxmizing_player, color):
                 if (piece.color == "white" and to_pos[0] == 0) or (piece.color == "black" and to_pos[0] == 7):
                     new_board.set_piece(queen.Queen(piece.color), to_pos)
 
-            # Đệ quy để đánh giá nước đi tiếp theo ở tầng sâu hơn trong cây tìm kiếm
+            # Đệ quy để đánh giá nước đi tiếp theo
             eval_score, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, False, color)
             
             # Nếu điểm nước đi này cao hơn những nước trước thì cập nhật điểm tốt nhất
@@ -278,7 +330,9 @@ def minimax_alpha_beta(board, depth, alpha, beta, maxmizing_player, color):
             alpha = max(alpha, eval_score)
             if beta <= alpha:
                 break
-            
+        
+        # Lưu kết quả vào bảng ghi nhớ
+        transposition_table[board_hash] = (depth, max_eval, best_move)
         return max_eval, best_move
     else:
         min_eval = float("inf")
@@ -291,7 +345,7 @@ def minimax_alpha_beta(board, depth, alpha, beta, maxmizing_player, color):
                 if (piece.color == "white" and to_pos[0] == 0) or (piece.color == "black" and to_pos[0] == 7):
                     new_board.set_piece(queen.Queen(piece.color), to_pos)
                     
-            # Đệ quy để đánh giá nước đi tiếp theo ở tầng sâu hơn trong cây tìm kiếm
+            # Đệ quy để đánh giá nước đi tiếp theo
             eval_score, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, True, color)
 
             if eval_score < min_eval:
@@ -301,7 +355,9 @@ def minimax_alpha_beta(board, depth, alpha, beta, maxmizing_player, color):
             beta = min(beta, eval_score)
             if beta <= alpha:
                 break
-            
+        
+        # Lưu kết quả vào bảng ghi nhớ
+        transposition_table[board_hash] = (depth, min_eval, best_move)
         return min_eval, best_move
     
 def opponent_color(color):
