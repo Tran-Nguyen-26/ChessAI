@@ -292,7 +292,7 @@ def minimax_alpha_beta(board, depth, alpha, beta, maxmizing_player, color):
                     new_board.set_piece(queen.Queen(piece.color), to_pos)
                     
             # Đệ quy để đánh giá nước đi tiếp theo ở tầng sâu hơn trong cây tìm kiếm
-            eval_score, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, False, color)
+            eval_score, _ = minimax_alpha_beta(new_board, depth - 1, alpha, beta, True, color)
 
             if eval_score < min_eval:
                 min_eval = eval_score

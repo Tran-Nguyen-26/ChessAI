@@ -2,7 +2,7 @@ import pygame
 import os
 from board.board import Board
 from ui.game_controls import GameController
-from game.ai import evaluate_board, get_all_valid_moves, minimax_alpha_beta
+from game.ai import minimax_alpha_beta
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
@@ -73,7 +73,7 @@ def draw_promotion_dialog(win, color, position, piece_images):
     if color == "white":
         start_row = 1
     else:
-        start_row = 6
+        start_row = 3
 
     dialog_width = SQUARE_SIZE
     dialog_height = 4 * SQUARE_SIZE
@@ -104,7 +104,7 @@ def start_game_ui():
     
     ai_thinking = False
     game_over = False
-    winner = Nonewinner = None
+    winner = None
 
     promotion_active = False
 
