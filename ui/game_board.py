@@ -86,6 +86,71 @@ def draw_promotion_dialog(win, color, position, piece_images):
 
         pygame.draw.rect(win, (150, 150, 150), (col * SQUARE_SIZE, (start_row + i) * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 1)
 
+def draw_game_over_message(win, winner):
+    """Hiển thị thông báo kết thúc trò chơi và tùy chọn chơi lại"""
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 150))  # Tạo lớp phủ mờ
+    win.blit(overlay, (0, 0))
+    
+    # Sử dụng font mặc định của Pygame thay vì SysFont
+    try:
+        font_large = pygame.font.SysFont('Arial', 50, bold=True)
+        font_medium = pygame.font.SysFont('Arial', 30)
+    except:
+        # Fallback nếu có lỗi với SysFont
+        font_large = pygame.font.Font(None, 50)  # Font mặc định với kích thước 50
+        font_medium = pygame.font.Font(None, 30)  # Font mặc định với kích thước 30
+    
+    # Thông báo người chiến thắng
+    if winner == "white":
+        message = "You Win!"  
+        color = (255, 255, 255)
+    else:
+        message = "AI Wins!"
+        color = (255, 215, 0) 
+    
+    # Vẽ thông báo người chiến thắng
+    try:
+        text_surface = font_large.render(message, True, color)
+        text_rect = text_surface.get_rect(center=(WIDTH//2, HEIGHT//2 - 50))
+        win.blit(text_surface, text_rect)
+    except:
+        # Xử lý trường hợp render text thất bại
+        pygame.draw.rect(win, color, (WIDTH//2 - 150, HEIGHT//2 - 75, 300, 50))
+    
+    # Thêm hướng dẫn để chơi lại hoặc thoát
+    instruction = "Press R to restart or ESC to exit"
+    try:
+        text_surface = font_medium.render(instruction, True, (200, 200, 200))
+        text_rect = text_surface.get_rect(center=(WIDTH//2, HEIGHT//2 + 30))
+        win.blit(text_surface, text_rect)
+    except:
+        # Xử lý trường hợp render text thất bại
+        pygame.draw.rect(win, (200, 200, 200), (WIDTH//2 - 150, HEIGHT//2 + 10, 300, 40))
+
+def draw_current_turn(win, current_turn):
+    try:
+        font = pygame.font.SysFont('Arial', 24)
+    except:
+        font = pygame.font.Font(None, 24)
+    
+    if current_turn == "white":
+        text = "Your Turn"
+        color = (255, 255, 255)  # White color
+    else:
+        text = "AI's Turn"
+        color = (0, 0, 0)  # Black color
+    
+    # Create background for the message
+    pygame.draw.rect(win, (100, 100, 100), (WIDTH//2 - 100, 5, 200, 30))
+    
+    # Render and draw text
+    try:
+        text_surface = font.render(text, True, color)
+        text_rect = text_surface.get_rect(center=(WIDTH//2, 20))
+        win.blit(text_surface, text_rect)
+    except Exception as e:
+        print(f"Error rendering turn text: {e}")
 
 def start_game_ui():    
     pygame.init()
@@ -114,15 +179,25 @@ def start_game_ui():
             if event.type == pygame.QUIT:
                 running = False
 
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                x, y = pygame.mouse.get_pos()
-                row = y // SQUARE_SIZE
-                col = x // SQUARE_SIZE
+            elif game_over and event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    board = Board()
+                    controller = GameController()
+                    game_over = False
+                    winner = None
+                    ai_thinking = False
+                elif event.key == pygame.K_ESCAPE:
+                    running = False 
 
-                # Xử lý phong quân nếu đang hiển thị dialog
+            elif event.type == pygame.MOUSEBUTTONDOWN and not ai_thinking and not game_over:
+                if controller.get_current_turn() == "white":
+                    x, y = pygame.mouse.get_pos()
+                    row = y // SQUARE_SIZE
+                    col = x // SQUARE_SIZE
+                    
                 if promotion_active and board.promote_piece:
                     promotion_col = board.promote_position[1]
-                    
+
                     # Kiểm tra nếu click vào đúng cột của quân phong
                     if col == promotion_col:
                         color = board.promote_piece.color
@@ -199,5 +274,11 @@ def start_game_ui():
 
         if promotion_active and board.promote_piece:
             draw_promotion_dialog(win, board.promote_piece.color, board.promote_position, piece_images)
+
+        if not game_over:
+            draw_current_turn(win, controller.get_current_turn())
+
+        if game_over:
+            draw_game_over_message(win,winner)
 
         pygame.display.flip()
