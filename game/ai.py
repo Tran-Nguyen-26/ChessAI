@@ -251,7 +251,6 @@ def minimax_alpha_beta(board, depth, alpha, beta, maxmizing_player, color):
     
     best_move = None
     all_moves = get_all_valid_moves(board, color if maxmizing_player else opponent_color(color))
-    # Lấy tất cả nước đi hợp lệ của bên hiện tại *
     if maxmizing_player:
         max_eval = float("-inf")
         for from_pos, to_pos in all_moves:
