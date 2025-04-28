@@ -43,6 +43,11 @@ class ChessGUI:
         # Vòng lặp chính của game
         self.running = True
         self.need_ai_move = False
+
+        # Thêm biến và UI cho Stockfish
+        self.use_stockfish = True  # Mặc định sử dụng Stockfish nếu có
+        # Thêm nút bật/tắt Stockfish
+        self.stockfish_btn = pygame.Rect(self.margin + 380, self.board_size + self.margin + 20, 160, 30)
         
     def load_images(self):
         """Tải hình ảnh các quân cờ"""
@@ -160,6 +165,10 @@ class ChessGUI:
         # Vẽ trạng thái
         status_text = self.status_font.render(self.status_text, True, (0, 0, 0))
         self.screen.blit(status_text, (self.margin, self.margin // 2))
+
+        pygame.draw.rect(self.screen, (200, 200, 200), self.stockfish_btn)
+        stockfish_text = self.font.render(f"Stockfish: {'Bật' if self.use_stockfish else 'Tắt'}", True, (0, 0, 0))
+        self.screen.blit(stockfish_text, (self.stockfish_btn.x + 10, self.stockfish_btn.y + 8))
     
     def handle_click(self, pos):
         """Xử lý sự kiện khi người dùng nhấn chuột"""
@@ -175,7 +184,10 @@ class ChessGUI:
         elif self.difficulty_btn.collidepoint(x, y):
             self.cycle_difficulty()
             return
-        
+        elif self.stockfish_btn.collidepoint(x, y):
+            self.toggle_stockfish()
+            return
+            
         # Kiểm tra nếu click vào bàn cờ
         if x < self.margin or x > self.board_size + self.margin or y < self.margin or y > self.board_size + self.margin:
             return
@@ -228,6 +240,14 @@ class ChessGUI:
                 else:
                     self.selected_square = None
                     self.possible_moves = []
+
+    # Thêm hàm mới để bật/tắt Stockfish
+    def toggle_stockfish(self):
+        """Bật/tắt sử dụng Stockfish"""
+        self.use_stockfish = not self.use_stockfish
+        self.ai.toggle_stockfish(self.use_stockfish)
+        status = "Bật" if self.use_stockfish else "Tắt"
+        self.status_text = f"Đã {status} Stockfish engine"
     
     def make_ai_move(self):
         """Để AI thực hiện nước đi"""
@@ -300,12 +320,16 @@ class ChessGUI:
         # Cập nhật độ sâu cho AI
         if self.difficulty == "Dễ":
             self.ai.depth = 2
+            self.ai.set_stockfish_strength(5)  # Stockfish yếu
         elif self.difficulty == "Trung bình":
             self.ai.depth = 3
+            self.ai.set_stockfish_strength(10)  # Stockfish trung bình
         elif self.difficulty == "Khó":
             self.ai.depth = 4
+            self.ai.set_stockfish_strength(15)  # Stockfish khó
         elif self.difficulty == "Rất khó":
             self.ai.depth = 5
+            self.ai.set_stockfish_strength(20)  # Stockfish rất khó
         
         self.status_text = f"Đã đặt độ khó: {self.difficulty}"
     
