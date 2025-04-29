@@ -17,7 +17,7 @@ class ChessGUI:
         self.window_size = (self.board_size + self.margin * 2, self.board_size + self.margin * 2 + 60)  # Thêm không gian cho controls
         
         self.screen = pygame.display.set_mode(self.window_size)
-        pygame.display.set_caption("Cờ vua đấu với AI")
+        pygame.display.set_caption("ChessAI")
         
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Arial", 14)
@@ -29,8 +29,8 @@ class ChessGUI:
         self.possible_moves = []
         self.player_color = chess.WHITE  # Mặc định người chơi quân trắng
         
-        self.status_text = "Mời bạn đi trước (Quân trắng)"
-        self.difficulty = "Trung bình"
+        self.status_text = "Your turn (White pieces)"
+        self.difficulty = "Medium"
         
         # Tải hình ảnh quân cờ
         self.load_images()
@@ -154,9 +154,9 @@ class ChessGUI:
         pygame.draw.rect(self.screen, (200, 200, 200), self.difficulty_btn)
         
         # Vẽ text cho các button
-        new_game_text = self.font.render("Game mới", True, (0, 0, 0))
-        switch_sides_text = self.font.render("Đổi bên", True, (0, 0, 0))
-        difficulty_text = self.font.render(f"Độ khó: {self.difficulty}", True, (0, 0, 0))
+        new_game_text = self.font.render("New game", True, (0, 0, 0))
+        switch_sides_text = self.font.render("Switch sides", True, (0, 0, 0))
+        difficulty_text = self.font.render(f"Difficulty: {self.difficulty}", True, (0, 0, 0))
         
         self.screen.blit(new_game_text, (self.new_game_btn.x + 10, self.new_game_btn.y + 8))
         self.screen.blit(switch_sides_text, (self.switch_sides_btn.x + 10, self.switch_sides_btn.y + 8))
@@ -167,7 +167,7 @@ class ChessGUI:
         self.screen.blit(status_text, (self.margin, self.margin // 2))
 
         pygame.draw.rect(self.screen, (200, 200, 200), self.stockfish_btn)
-        stockfish_text = self.font.render(f"Stockfish: {'Bật' if self.use_stockfish else 'Tắt'}", True, (0, 0, 0))
+        stockfish_text = self.font.render(f"Stockfish: {'On' if self.use_stockfish else 'Off'}", True, (0, 0, 0))
         self.screen.blit(stockfish_text, (self.stockfish_btn.x + 10, self.stockfish_btn.y + 8))
     
     def handle_click(self, pos):
@@ -222,7 +222,7 @@ class ChessGUI:
             if move in self.ai.board.legal_moves:
                 # Thực hiện nước đi của người chơi
                 self.ai.board.push(move)
-                self.status_text = "Đang suy nghĩ..."
+                self.status_text = "Thinking..."
                 
                 # Reset trạng thái chọn
                 self.selected_square = None
@@ -246,8 +246,8 @@ class ChessGUI:
         """Bật/tắt sử dụng Stockfish"""
         self.use_stockfish = not self.use_stockfish
         self.ai.toggle_stockfish(self.use_stockfish)
-        status = "Bật" if self.use_stockfish else "Tắt"
-        self.status_text = f"Đã {status} Stockfish engine"
+        status = "On" if self.use_stockfish else "Off"
+        self.status_text = f"Stockfish engine is {status}"
     
     def make_ai_move(self):
         """Để AI thực hiện nước đi"""
@@ -259,7 +259,7 @@ class ChessGUI:
         if ai_move:
             self.ai.board.push(ai_move)
             move_text = ai_move.uci()
-            self.status_text = f"AI đã đi: {move_text}. Đến lượt bạn."
+            self.status_text = f"AI played: {move_text}. Your turn."
         
         self.need_ai_move = False
         self.update_game_status()
@@ -267,17 +267,17 @@ class ChessGUI:
     def update_game_status(self):
         """Cập nhật trạng thái game"""
         if self.ai.board.is_checkmate():
-            winner = "Trắng" if not self.ai.board.turn else "Đen"
-            self.status_text = f"Chiếu hết! {winner} thắng"
-            self.show_game_over_message(f"Chiếu hết! {winner} thắng")
+            winner = "White" if not self.ai.board.turn else "Black"
+            self.status_text = f"Checkmate! {winner} wins"
+            self.show_game_over_message(f"Checkmate! {winner} wins")
         elif self.ai.board.is_stalemate():
-            self.status_text = "Hòa cờ do bế tắc!"
-            self.show_game_over_message("Hòa cờ do bế tắc!")
+            self.status_text = "Stalemate!"
+            self.show_game_over_message("Stalemate!")
         elif self.ai.board.is_insufficient_material():
-            self.status_text = "Hòa cờ do không đủ quân chiếu hết!"
-            self.show_game_over_message("Hòa cờ do không đủ quân chiếu hết!")
+            self.status_text = "Draw by insufficient material!"
+            self.show_game_over_message("Draw by insufficient material!")
         elif self.ai.board.is_check():
-            self.status_text = "Chiếu! " + ("Trắng" if self.ai.board.turn else "Đen") + " đi"
+            self.status_text = "Check! " + ("White" if self.ai.board.turn else "Black") + " to move"
     
     def show_game_over_message(self, message):
         """Hiển thị thông báo kết thúc game"""
@@ -299,7 +299,7 @@ class ChessGUI:
         self.ai.reset_board()
         self.selected_square = None
         self.possible_moves = []
-        self.status_text = "Game mới! " + ("Bạn" if self.player_color == chess.WHITE else "AI") + " đi trước (Quân trắng)"
+        self.status_text = "New game! " + ("You" if self.player_color == chess.WHITE else "AI") + " goes first (White pieces)"
         
         # Nếu AI đi trước
         if self.ai.board.turn != self.player_color:
@@ -312,26 +312,26 @@ class ChessGUI:
     
     def cycle_difficulty(self):
         """Thay đổi độ khó theo chu kỳ"""
-        difficulties = ["Dễ", "Trung bình", "Khó", "Rất khó"]
+        difficulties = ["Easy", "Medium", "Hard", "Very Hard"]
         current_index = difficulties.index(self.difficulty)
         next_index = (current_index + 1) % len(difficulties)
         self.difficulty = difficulties[next_index]
         
         # Cập nhật độ sâu cho AI
-        if self.difficulty == "Dễ":
+        if self.difficulty == "Easy":
             self.ai.depth = 2
             self.ai.set_stockfish_strength(5)  # Stockfish yếu
-        elif self.difficulty == "Trung bình":
+        elif self.difficulty == "Medium":
             self.ai.depth = 3
             self.ai.set_stockfish_strength(10)  # Stockfish trung bình
-        elif self.difficulty == "Khó":
+        elif self.difficulty == "Hard":
             self.ai.depth = 4
             self.ai.set_stockfish_strength(15)  # Stockfish khó
-        elif self.difficulty == "Rất khó":
+        elif self.difficulty == "Very Hard":
             self.ai.depth = 5
             self.ai.set_stockfish_strength(20)  # Stockfish rất khó
         
-        self.status_text = f"Đã đặt độ khó: {self.difficulty}"
+        self.status_text = f"Difficulty set: {self.difficulty}"
     
     def run(self):
         """Vòng lặp chính của game"""
