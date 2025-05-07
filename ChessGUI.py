@@ -55,10 +55,11 @@ class ChessGUI:
         self.use_stockfish = True  # Mặc định sử dụng Stockfish nếu có
         # Thêm nút bật/tắt Stockfish
         self.stockfish_btn = pygame.Rect(start_x + 3*(button_width + button_spacing) + 20, self.board_size + self.margin + 20, button_width + 20, button_height)
+
         # Thêm biến kiểm soát chế độ AI vs AI
         self.ai_vs_ai_mode = False
         self.ai_vs_ai_paused = False
-    
+        self.last_ai_move_time = 0  
         # Thêm nút điều khiển
         self.ai_vs_ai_btn = pygame.Rect(start_x + 4*(button_width + button_spacing) + 40, self.board_size + self.margin + 20, button_width, button_height)
         self.ai_vs_ai_pause_btn = pygame.Rect(start_x, self.board_size + self.margin + 20 + button_height + 10, button_width, button_height)
@@ -339,11 +340,14 @@ class ChessGUI:
         self.ai.reset_board()
         self.selected_square = None
         self.possible_moves = []
+        self.last_ai_move_time = pygame.time.get_ticks()  # Reset thời gian
         
         if self.ai_vs_ai_mode:
             self.status_text = "AI vs AI - New game started"
+            self.need_ai_move = True  # Bắt đầu ngay lập tức
         else:
             self.status_text = "New game! " + ("You" if self.player_color == chess.WHITE else "AI") + " goes first (White pieces)"
+            self.need_ai_move = (self.ai.board.turn != self.player_color)
         
         # Nếu AI đi trước hoặc đang ở chế độ AI vs AI
         if self.ai.board.turn != self.player_color or self.ai_vs_ai_mode:
@@ -377,15 +381,19 @@ class ChessGUI:
             self.ai.set_stockfish_strength(20)  # Stockfish rất khó
         
         self.status_text = f"Difficulty set: {self.difficulty}"
+
     def toggle_ai_vs_ai(self):
         """Bật/tắt chế độ AI đấu với AI"""
         self.ai_vs_ai_mode = not self.ai_vs_ai_mode
         if self.ai_vs_ai_mode:
             self.status_text = "AI vs AI mode - Running"
             self.player_color = None  # Không có người chơi
+            self.need_ai_move = True  # Thêm dòng này để bắt đầu ngay lập tức
+            self.last_ai_move_time = pygame.time.get_ticks()  # Reset thời gian
         else:
             self.status_text = "AI vs AI mode - Off"
             self.player_color = chess.WHITE  # Trở lại chế độ người chơi
+            self.need_ai_move = (self.ai.board.turn != self.player_color)
 
     def toggle_ai_vs_ai_pause(self):
         """Tạm dừng/tiếp tục chế độ AI vs AI"""
@@ -419,14 +427,14 @@ class ChessGUI:
                     last_ai_move_time = current_time
             # Xử lý chế độ bình thường
             elif self.need_ai_move:
-                pygame.time.wait(500)  # Chờ một chút để người chơi thấy được nước đi của họ
+                pygame.time.wait(100)  # Chờ một chút để người chơi thấy được nước đi của họ
                 self.make_ai_move()
             
             # Cập nhật trạng thái game
             self.update_game_status()
             
             # Giới hạn FPS
-            self.clock.tick(30)
+            self.clock.tick(60)
         
         pygame.quit()
         sys.exit()
