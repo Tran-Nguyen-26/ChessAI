@@ -658,7 +658,7 @@ class ChessAI:
             common_paths.append(os.path.join(os.path.dirname(__file__), 'engines', 'stockfish.exe'))
 
             common_paths.append(os.path.join(os.path.dirname(__file__), 'stockfish-windows-x86-64-avx2.exe'))
-            common_paths.append(os.path.join(os.path.dirname(__file__), 'engines', 'stockfish-windows-x86-64-avx2.exe'))
+            common_paths.append(os.path.join(os.path.dirname(__file__), 'engines', 'stockfish', 'stockfish-windows-x86-64-avx2.exe'))
 
             # Thêm đường dẫn cài đặt phổ biến của Windows
             program_files = os.environ.get('ProgramFiles', 'C:\\Program Files')
