@@ -384,8 +384,8 @@ class ChessGUI:
         """Vòng lặp chính của game"""
         ai_move_delay = 500  # Thời gian chờ giữa các nước đi AI (ms)
         while self.running:
-            print(self.stockfish_level)
-            print(self.ai.depth)
+            # print(self.stockfish_level)
+            # print(self.ai.depth)
             current_time = pygame.time.get_ticks()
             # Xử lý các sự kiện
             for event in pygame.event.get():
