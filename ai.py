@@ -111,6 +111,7 @@ class ChessAI:
         self.stockfish_path = self._find_stockfish()  # Tìm đường dẫn đến Stockfish
         self.stockfish_process = None
         self.stockfish_strength = 20  # Cường độ mặc định (1-20)
+        self.use_stockfish_as_opponent = False  # Chế độ đấu với Stockfish
 
         self.piece_values = {
             chess.PAWN: PAWN_VALUE,
@@ -153,6 +154,15 @@ class ChessAI:
             return False
     
     def get_ai_move(self):
+        """Lấy nước đi từ AI hoặc Stockfish tùy chế độ"""
+        if self.use_stockfish_as_opponent and self.board.turn == chess.BLACK:
+            # Cho Stockfish đi quân đen
+            return self._get_stockfish_move(1000)  # 1 giây suy nghĩ
+        else:
+            # Sử dụng AI thuật toán riêng cho quân trắng
+            return self._get_internal_ai_move()
+
+    def _get_internal_ai_move(self):
         """Find the best move using iterative deepening with alpha-beta pruning"""
         
         # If there's only one legal move, play it immediately
@@ -762,3 +772,18 @@ class ChessAI:
         self.use_stockfish = use_stockfish
         if use_stockfish and not self.stockfish_process and self.stockfish_path:
             self._init_stockfish()
+
+    def set_stockfish_strength(self, level):
+        """Đặt độ khó cho Stockfish (1-20)"""
+        self.stockfish_strength = max(1, min(20, level))
+        if self.stockfish_process:
+            self._send_to_stockfish(f"setoption name Skill Level value {self.stockfish_strength}")
+
+    def toggle_stockfish_opponent(self, enable):
+        """Bật/tắt chế độ đấu với Stockfish"""
+        self.use_stockfish_as_opponent = enable
+        if enable and not self.stockfish_process and self.stockfish_path:
+            self._init_stockfish()
+
+
+    
