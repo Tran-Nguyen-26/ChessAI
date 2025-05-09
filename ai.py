@@ -512,6 +512,29 @@ class ChessAI:
         # Trả về điểm từ góc nhìn của người chơi hiện tại
         return total_score if self.board.turn == chess.WHITE else -total_score
 
+    def _calculate_game_phase(self):
+        """Tính toán giai đoạn ván đấu (0.0 là khai cuộc, 1.0 là tàn cuộc)"""
+        # Đếm quân chủ chốt (hậu, xe, mã, tượng)
+        total_phase = 24  # Tổng giá trị ban đầu: 2 hậu (8) + 4 xe (8) + 4 mã (4) + 4 tượng (4)
+
+        current_phase = total_phase
+
+        # Trừ đi giá trị cho từng quân đã mất
+        current_phase -= len(self.board.pieces(chess.QUEEN, chess.WHITE)) * 4
+        current_phase -= len(self.board.pieces(chess.QUEEN, chess.BLACK)) * 4
+        current_phase -= len(self.board.pieces(chess.ROOK, chess.WHITE)) * 2
+        current_phase -= len(self.board.pieces(chess.ROOK, chess.BLACK)) * 2
+        current_phase -= len(self.board.pieces(chess.BISHOP, chess.WHITE)) * 1
+        current_phase -= len(self.board.pieces(chess.BISHOP, chess.BLACK)) * 1
+        current_phase -= len(self.board.pieces(chess.KNIGHT, chess.WHITE)) * 1
+        current_phase -= len(self.board.pieces(chess.KNIGHT, chess.BLACK)) * 1
+
+        # Chuyển đổi thành tỷ lệ (0.0 - 1.0)
+        phase = current_phase / total_phase
+
+        # Đảo ngược để 0.0 là khai cuộc và 1.0 là tàn cuộc
+        return 1.0 - min(1.0, max(0.0, phase))
+
     def _evaluate_development(self):
         """Đánh giá mức độ phát triển quân trong khai cuộc"""
         score = 0
@@ -683,6 +706,58 @@ class ChessAI:
             # Phạt cho đường mở tới vua
             score += self._evaluate_king_open_files(chess.WHITE)
             score -= self._evaluate_king_open_files(chess.BLACK)
+
+        return score
+
+    def _evaluate_king_pawn_shield(self, king_square, color):
+        """Đánh giá tường tốt bảo vệ vua"""
+        score = 0
+        king_file = chess.square_file(king_square)
+        king_rank = chess.square_rank(king_square)
+
+        # Xác định hàng để kiểm tra dựa trên màu
+        pawn_ranks = range(king_rank + 1, min(king_rank + 3, 8)) if color == chess.WHITE else range(
+            max(king_rank - 2, 0), king_rank)
+
+        # Kiểm tra tốt phía trước vua
+        shield_count = 0
+        for f in range(max(0, king_file - 1), min(7, king_file + 1) + 1):
+            for r in pawn_ranks:
+                square = chess.square(f, r)
+                piece = self.board.piece_at(square)
+                if piece and piece.piece_type == chess.PAWN and piece.color == color:
+                    shield_count += 1
+                    # Thưởng thêm cho tốt ở cột vua
+                    if f == king_file:
+                        score += 5
+
+        # Thưởng dựa vào số lượng tốt bảo vệ
+        score += shield_count * 10
+
+        return score
+
+    def _evaluate_king_open_files(self, color):
+        """Phạt cho đường mở tới vua"""
+        score = 0
+        king_square = self.board.king(color)
+
+        if king_square is None:
+            return 0
+
+        king_file = chess.square_file(king_square)
+
+        # Kiểm tra cột vua và các cột kề
+        for f in range(max(0, king_file - 1), min(7, king_file + 1) + 1):
+            file_mask = chess.BB_FILES[f]
+
+            # Kiểm tra xem có tốt nào trên cột này không
+            pawns_on_file = self.board.pieces(chess.PAWN, chess.WHITE) | self.board.pieces(chess.PAWN, chess.BLACK)
+            pawns_on_file &= chess.SquareSet(file_mask)
+
+            if not pawns_on_file:
+                # Cột mở - phạt điểm
+                penalty = -30 if f == king_file else -15
+                score += penalty
 
         return score
 
