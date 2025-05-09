@@ -373,7 +373,7 @@ class ChessGUI:
             self.ai.set_stockfish_strength(15)  # Stockfish khó
         elif self.difficulty == "Very Hard":
             self.ai.depth = 5
-            self.ai.set_stockfish_strength(20)  # Stockfish rất khó
+            self.ai.set_stockfish_strength(15)  # Stockfish rất khó
 
         self.status_text = f"Difficulty set: {self.difficulty}"
 

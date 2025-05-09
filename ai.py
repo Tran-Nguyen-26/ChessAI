@@ -512,6 +512,198 @@ class ChessAI:
         # Trả về điểm từ góc nhìn của người chơi hiện tại
         return total_score if self.board.turn == chess.WHITE else -total_score
 
+    def _evaluate_material(self):
+        """Đánh giá vật chất trên bàn cờ"""
+        score = 0
+
+        # Đánh giá giá trị vật chất của tất cả các quân
+        for square in chess.SQUARES:
+            piece = self.board.piece_at(square)
+            if not piece:
+                continue
+
+            # Cộng điểm cho quân trắng, trừ điểm cho quân đen
+            value = self.piece_values[piece.piece_type]
+            score += value if piece.color == chess.WHITE else -value
+
+        return score
+
+    def _evaluate_piece_position(self, game_phase):
+        """Đánh giá vị trí các quân trên bàn cờ"""
+        score = 0
+        is_endgame = game_phase >= 0.75  # Xem như tàn cuộc nếu game_phase >= 0.75
+
+        for square in chess.SQUARES:
+            piece = self.board.piece_at(square)
+            if not piece:
+                continue
+
+            # Đánh giá vị trí dựa trên bảng giá trị vị trí
+            position_value = 0
+
+            if piece.piece_type == chess.PAWN:
+                position_value = PAWN_TABLE[square if piece.color else 63 - square]
+            elif piece.piece_type == chess.KNIGHT:
+                position_value = KNIGHT_TABLE[square if piece.color else 63 - square]
+            elif piece.piece_type == chess.BISHOP:
+                position_value = BISHOP_TABLE[square if piece.color else 63 - square]
+            elif piece.piece_type == chess.ROOK:
+                position_value = ROOK_TABLE[square if piece.color else 63 - square]
+            elif piece.piece_type == chess.QUEEN:
+                position_value = QUEEN_TABLE[square if piece.color else 63 - square]
+            elif piece.piece_type == chess.KING:
+                position_value = KING_END_TABLE[square if piece.color else 63 - square] if is_endgame else \
+                KING_MIDDLE_TABLE[square if piece.color else 63 - square]
+
+            # Thêm/trừ điểm tùy thuộc vào màu quân
+            score += position_value if piece.color == chess.WHITE else -position_value
+
+        return score
+
+    def _evaluate_piece_coordination(self):
+        """Đánh giá sự phối hợp giữa các quân cờ"""
+        score = 0
+
+        # Thưởng cho cặp tượng
+        white_bishops = len(self.board.pieces(chess.BISHOP, chess.WHITE))
+        black_bishops = len(self.board.pieces(chess.BISHOP, chess.BLACK))
+
+        if white_bishops >= 2:
+            score += 30  # Thưởng cho việc có cặp tượng
+
+        if black_bishops >= 2:
+            score -= 30
+
+        # Thưởng cho mã và tượng khi chúng hỗ trợ nhau
+        knight_squares = [s for s in chess.SQUARES if
+                          self.board.piece_at(s) and self.board.piece_at(s).piece_type == chess.KNIGHT]
+        bishop_squares = [s for s in chess.SQUARES if
+                          self.board.piece_at(s) and self.board.piece_at(s).piece_type == chess.BISHOP]
+
+        for knight_sq in knight_squares:
+            knight_color = self.board.piece_at(knight_sq).color
+            for bishop_sq in bishop_squares:
+                bishop_color = self.board.piece_at(bishop_sq).color
+                if knight_color == bishop_color:
+                    # Kiểm tra nếu mã và tượng có thể bảo vệ nhau
+                    if knight_sq in self.board.attacks(bishop_sq) or bishop_sq in self.board.attacks(knight_sq):
+                        score += 10 if knight_color == chess.WHITE else -10
+
+        # Thưởng cho xe kết nối
+        rook_squares = [s for s in chess.SQUARES if
+                        self.board.piece_at(s) and self.board.piece_at(s).piece_type == chess.ROOK]
+        white_connected_rooks = False
+        black_connected_rooks = False
+
+        for i, rook1_sq in enumerate(rook_squares[:-1]):
+            rook1_color = self.board.piece_at(rook1_sq).color
+            for rook2_sq in rook_squares[i + 1:]:
+                rook2_color = self.board.piece_at(rook2_sq).color
+                if rook1_color == rook2_color:
+                    rook1_file = chess.square_file(rook1_sq)
+                    rook1_rank = chess.square_rank(rook1_sq)
+                    rook2_file = chess.square_file(rook2_sq)
+                    rook2_rank = chess.square_rank(rook2_sq)
+
+                    # Kiểm tra xe trên cùng hàng hoặc cột và không có quân ở giữa
+                    if (rook1_file == rook2_file or rook1_rank == rook2_rank):
+                        connected = True
+                        # Kiểm tra quân ở giữa
+                        if rook1_file == rook2_file:  # Cùng cột
+                            for r in range(min(rook1_rank, rook2_rank) + 1, max(rook1_rank, rook2_rank)):
+                                if self.board.piece_at(chess.square(rook1_file, r)):
+                                    connected = False
+                                    break
+                        else:  # Cùng hàng
+                            for f in range(min(rook1_file, rook2_file) + 1, max(rook1_file, rook2_file)):
+                                if self.board.piece_at(chess.square(f, rook1_rank)):
+                                    connected = False
+                                    break
+
+                        if connected:
+                            if rook1_color == chess.WHITE:
+                                white_connected_rooks = True
+                            else:
+                                black_connected_rooks = True
+
+        if white_connected_rooks:
+            score += 25
+        if black_connected_rooks:
+            score -= 25
+
+        return score
+
+    def _calculate_game_phase(self):
+        """Tính toán giai đoạn ván đấu (0.0 là khai cuộc, 1.0 là tàn cuộc)"""
+        # Đếm quân chủ chốt (hậu, xe, mã, tượng)
+        total_phase = 24  # Tổng giá trị ban đầu: 2 hậu (8) + 4 xe (8) + 4 mã (4) + 4 tượng (4)
+
+        current_phase = total_phase
+
+        # Trừ đi giá trị cho từng quân đã mất
+        current_phase -= len(self.board.pieces(chess.QUEEN, chess.WHITE)) * 4
+        current_phase -= len(self.board.pieces(chess.QUEEN, chess.BLACK)) * 4
+        current_phase -= len(self.board.pieces(chess.ROOK, chess.WHITE)) * 2
+        current_phase -= len(self.board.pieces(chess.ROOK, chess.BLACK)) * 2
+        current_phase -= len(self.board.pieces(chess.BISHOP, chess.WHITE)) * 1
+        current_phase -= len(self.board.pieces(chess.BISHOP, chess.BLACK)) * 1
+        current_phase -= len(self.board.pieces(chess.KNIGHT, chess.WHITE)) * 1
+        current_phase -= len(self.board.pieces(chess.KNIGHT, chess.BLACK)) * 1
+
+        # Chuyển đổi thành tỷ lệ (0.0 - 1.0)
+        phase = current_phase / total_phase
+
+        # Đảo ngược để 0.0 là khai cuộc và 1.0 là tàn cuộc
+        return 1.0 - min(1.0, max(0.0, phase))
+
+    def _evaluate_development(self):
+        """Đánh giá mức độ phát triển quân trong khai cuộc"""
+        score = 0
+
+        # Chỉ đánh giá nếu đang ở giai đoạn khai cuộc (ít hơn 20 nước đi)
+        if len(self.board.move_stack) > 20:
+            return 0
+
+        # Thưởng cho việc phát triển mã, tượng ra khỏi vị trí ban đầu
+        for piece_type in [chess.KNIGHT, chess.BISHOP]:
+            # Vị trí ban đầu của mã và tượng trắng
+            white_initial = [chess.B1, chess.G1, chess.C1, chess.F1] if piece_type == chess.KNIGHT else [chess.C1,
+                                                                                                         chess.F1]
+            # Kiểm tra xem các quân đã di chuyển khỏi vị trí ban đầu chưa
+            for square in white_initial:
+                piece = self.board.piece_at(square)
+                if not piece or piece.piece_type != piece_type or piece.color != chess.WHITE:
+                    score += 10  # Đã di chuyển
+
+            # Tương tự cho quân đen
+            black_initial = [chess.B8, chess.G8, chess.C8, chess.F8] if piece_type == chess.KNIGHT else [chess.C8,
+                                                                                                         chess.F8]
+            for square in black_initial:
+                piece = self.board.piece_at(square)
+                if not piece or piece.piece_type != piece_type or piece.color != chess.BLACK:
+                    score -= 10  # Đã di chuyển
+
+        # Phạt cho việc di chuyển hậu quá sớm
+        white_queen_square = chess.D1
+        if not (self.board.piece_at(white_queen_square) and
+                self.board.piece_at(white_queen_square).piece_type == chess.QUEEN and
+                self.board.piece_at(white_queen_square).color == chess.WHITE):
+            # Hậu đã di chuyển
+            moves_count = len(self.board.move_stack) // 2  # Số lượt của mỗi bên
+            if moves_count < 7:  # Nếu di chuyển hậu quá sớm
+                score -= 20
+
+        black_queen_square = chess.D8
+        if not (self.board.piece_at(black_queen_square) and
+                self.board.piece_at(black_queen_square).piece_type == chess.QUEEN and
+                self.board.piece_at(black_queen_square).color == chess.BLACK):
+            # Hậu đã di chuyển
+            moves_count = (len(self.board.move_stack) + 1) // 2  # Số lượt của đen
+            if moves_count < 7:  # Nếu di chuyển hậu quá sớm
+                score += 20
+
+        return score
+
     def _calculate_game_phase(self):
         """Tính toán giai đoạn ván đấu (0.0 là khai cuộc, 1.0 là tàn cuộc)"""
         # Đếm quân chủ chốt (hậu, xe, mã, tượng)
