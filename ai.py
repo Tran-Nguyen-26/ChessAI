@@ -378,112 +378,89 @@ class ChessAI:
         moves = self._order_moves(list(self.board.legal_moves))
 
         best_score = float('-inf')
-
         legal_moves_searched = 0
 
         for i, move in enumerate(moves):
-
             # Kiểm tra xem nước đi có là capture hoặc promote không
-
             is_capture_or_promotion = self.board.is_capture(move) or move.promotion
 
             self.board.push(move)
 
             # Áp dụng LMR cho các nước không phải capture/promotion và không phải 2 nước đầu tiên
-
             if depth >= 3 and i >= 2 and not is_capture_or_promotion and not self.board.is_check():
-
                 # Reduced depth search
-
                 score = -self._alpha_beta(depth - 2, -alpha - 1, -alpha, allow_null_move)
-
                 # Nếu search giảm độ sâu cho kết quả tốt, thực hiện lại search đầy đủ
-
                 if score > alpha:
                     score = -self._alpha_beta(depth - 1, -beta, -alpha, allow_null_move)
-
             else:
-
                 # Full depth search cho các nước quan trọng
-
                 score = -self._alpha_beta(depth - 1, -beta, -alpha, allow_null_move)
 
             self.board.pop()
-
             legal_moves_searched += 1
 
             best_score = max(best_score, score)
-
             alpha = max(alpha, score)
 
             if alpha >= beta:
                 break  # Beta cutoff
 
         # Lưu kết quả vào bảng transposition
-
         self.transposition_table[board_hash] = (depth, best_score)
 
         return best_score
 
-    def _order_moves(self, moves):
-        """Sắp xếp nước đi nâng cao với killer moves và history heuristic"""
-        scored_moves = []
+    def _quiescence_search(self, alpha, beta, depth=0, max_depth=4):
+        """Quiescence search nâng cao"""
+        self.nodes_searched += 1
 
-        # Thêm trường dữ liệu cho killer moves và history
-        if not hasattr(self, 'killer_moves'):
-            self.killer_moves = [[None, None] for _ in range(100)]  # Lưu 2 killer moves cho mỗi độ sâu
+        # Ngăn độ sâu quá lớn trong quiescence search
+        if depth >= max_depth:
+            return self._evaluate_position()
 
-        if not hasattr(self, 'history_table'):
-            self.history_table = {}  # Bảng history heuristic
+        stand_pat = self._evaluate_position()
 
-        current_depth = len(self.board.move_stack)
+        # Delta pruning
+        if stand_pat >= beta:
+            return beta
+
+        # Nếu đang bị chiếu, cần xem xét tất cả các nước đi hợp lệ
+        if self.board.is_check():
+            moves = list(self.board.legal_moves)
+        else:
+            # Chỉ xem xét captures và promotions
+            moves = [m for m in self.board.legal_moves if self.board.is_capture(m) or m.promotion]
+
+            # Thêm các nước chiếu vào danh sách
+            for m in list(self.board.legal_moves):
+                if m not in moves:  # Nếu chưa xem xét
+                    self.board.push(m)
+                    gives_check = self.board.is_check()
+                    self.board.pop()
+
+                    if gives_check:
+                        moves.append(m)
+
+        # Cập nhật alpha nếu stand_pat tốt hơn
+        if stand_pat > alpha:
+            alpha = stand_pat
+
+        # Sắp xếp nước đi để cải thiện pruning
+        moves = self._order_moves(moves)
 
         for move in moves:
-            score = 0
-            move_key = (move.from_square, move.to_square)
-
-            # MVV-LVA (Most Valuable Victim - Least Valuable Aggressor)
-            if self.board.is_capture(move):
-                victim_square = move.to_square
-                victim_piece = self.board.piece_at(victim_square)
-
-                if self.board.is_en_passant(move):
-                    score = 10 * PAWN_VALUE
-                elif victim_piece:
-                    aggressor_piece = self.board.piece_at(move.from_square)
-                    score = 10 * self.piece_values[victim_piece.piece_type] - self.piece_values[
-                        aggressor_piece.piece_type]
-
-            # Thưởng cho phong hậu
-            if move.promotion:
-                score += 900 if move.promotion == chess.QUEEN else 500
-
-            # Thưởng cho nước chiếu
             self.board.push(move)
-            gives_check = self.board.is_check()
+            score = -self._quiescence_search(-beta, -alpha, depth + 1, max_depth)
             self.board.pop()
 
-            if gives_check:
-                score += 50
+            if score >= beta:
+                return beta
 
-            # Thưởng cho nhập thành
-            if self.board.is_castling(move):
-                score += 60
+            if score > alpha:
+                alpha = score
 
-            # Thưởng cho killer moves
-            if current_depth < len(self.killer_moves) and move in self.killer_moves[current_depth]:
-                score += 30
-
-            # Thưởng cho history heuristic
-            if move_key in self.history_table:
-                score += min(self.history_table[move_key] // 10, 200)  # Giới hạn ảnh hưởng
-
-            scored_moves.append((move, score))
-
-        # Sắp xếp nước đi theo điểm giảm dần
-        scored_moves.sort(key=lambda x: x[1], reverse=True)
-
-        return [move for move, _ in scored_moves]
+        return alpha
 
     def _evaluate_position(self):
         """Đánh giá vị trí bàn cờ toàn diện"""
@@ -534,6 +511,54 @@ class ChessAI:
 
         # Trả về điểm từ góc nhìn của người chơi hiện tại
         return total_score if self.board.turn == chess.WHITE else -total_score
+
+    def _evaluate_development(self):
+        """Đánh giá mức độ phát triển quân trong khai cuộc"""
+        score = 0
+
+        # Chỉ đánh giá nếu đang ở giai đoạn khai cuộc (ít hơn 10 nước đi)
+        if len(self.board.move_stack) > 20:
+            return 0
+
+        # Thưởng cho việc phát triển mã, tượng ra khỏi vị trí ban đầu
+        for piece_type in [chess.KNIGHT, chess.BISHOP]:
+            # Vị trí ban đầu của mã và tượng trắng
+            white_initial = [chess.B1, chess.G1, chess.C1, chess.F1] if piece_type == chess.KNIGHT else [chess.C1,
+                                                                                                         chess.F1]
+            # Kiểm tra xem các quân đã di chuyển khỏi vị trí ban đầu chưa
+            for square in white_initial:
+                piece = self.board.piece_at(square)
+                if not piece or piece.piece_type != piece_type or piece.color != chess.WHITE:
+                    score += 10  # Đã di chuyển
+
+            # Tương tự cho quân đen
+            black_initial = [chess.B8, chess.G8, chess.C8, chess.F8] if piece_type == chess.KNIGHT else [chess.C8,
+                                                                                                         chess.F8]
+            for square in black_initial:
+                piece = self.board.piece_at(square)
+                if not piece or piece.piece_type != piece_type or piece.color != chess.BLACK:
+                    score -= 10  # Đã di chuyển
+
+        # Phạt cho việc di chuyển hậu quá sớm
+        white_queen_square = chess.D1
+        if not (self.board.piece_at(white_queen_square) and
+                self.board.piece_at(white_queen_square).piece_type == chess.QUEEN and
+                self.board.piece_at(white_queen_square).color == chess.WHITE):
+            # Hậu đã di chuyển
+            moves_count = len(self.board.move_stack) // 2  # Số lượt của mỗi bên
+            if moves_count < 7:  # Nếu di chuyển hậu quá sớm
+                score -= 20
+
+        black_queen_square = chess.D8
+        if not (self.board.piece_at(black_queen_square) and
+                self.board.piece_at(black_queen_square).piece_type == chess.QUEEN and
+                self.board.piece_at(black_queen_square).color == chess.BLACK):
+            # Hậu đã di chuyển
+            moves_count = (len(self.board.move_stack) + 1) // 2  # Số lượt của đen
+            if moves_count < 7:  # Nếu di chuyển hậu quá sớm
+                score += 20
+
+        return score
 
     def _calculate_game_phase(self):
         """Tính toán giai đoạn ván đấu (0.0 là khai cuộc, 1.0 là tàn cuộc)"""
@@ -710,54 +735,6 @@ class ChessAI:
                 # Cột mở - phạt điểm
                 penalty = -30 if f == king_file else -15
                 score += penalty
-
-        return score
-
-    def _evaluate_development(self):
-        """Đánh giá mức độ phát triển quân trong khai cuộc"""
-        score = 0
-
-        # Chỉ đánh giá nếu đang ở giai đoạn khai cuộc (ít hơn 10 nước đi)
-        if len(self.board.move_stack) > 20:
-            return 0
-
-        # Thưởng cho việc phát triển mã, tượng ra khỏi vị trí ban đầu
-        for piece_type in [chess.KNIGHT, chess.BISHOP]:
-            # Vị trí ban đầu của mã và tượng trắng
-            white_initial = [chess.B1, chess.G1, chess.C1, chess.F1] if piece_type == chess.KNIGHT else [chess.C1,
-                                                                                                         chess.F1]
-            # Kiểm tra xem các quân đã di chuyển khỏi vị trí ban đầu chưa
-            for square in white_initial:
-                piece = self.board.piece_at(square)
-                if not piece or piece.piece_type != piece_type or piece.color != chess.WHITE:
-                    score += 10  # Đã di chuyển
-
-            # Tương tự cho quân đen
-            black_initial = [chess.B8, chess.G8, chess.C8, chess.F8] if piece_type == chess.KNIGHT else [chess.C8,
-                                                                                                         chess.F8]
-            for square in black_initial:
-                piece = self.board.piece_at(square)
-                if not piece or piece.piece_type != piece_type or piece.color != chess.BLACK:
-                    score -= 10  # Đã di chuyển
-
-        # Phạt cho việc di chuyển hậu quá sớm
-        white_queen_square = chess.D1
-        if not (self.board.piece_at(white_queen_square) and
-                self.board.piece_at(white_queen_square).piece_type == chess.QUEEN and
-                self.board.piece_at(white_queen_square).color == chess.WHITE):
-            # Hậu đã di chuyển
-            moves_count = len(self.board.move_stack) // 2  # Số lượt của mỗi bên
-            if moves_count < 7:  # Nếu di chuyển hậu quá sớm
-                score -= 20
-
-        black_queen_square = chess.D8
-        if not (self.board.piece_at(black_queen_square) and
-                self.board.piece_at(black_queen_square).piece_type == chess.QUEEN and
-                self.board.piece_at(black_queen_square).color == chess.BLACK):
-            # Hậu đã di chuyển
-            moves_count = (len(self.board.move_stack) + 1) // 2  # Số lượt của đen
-            if moves_count < 7:  # Nếu di chuyển hậu quá sớm
-                score += 20
 
         return score
 
