@@ -1,5 +1,5 @@
-from ui.game_board import start_game_ui
-from ui.main_menu import MainMenu
+from ChessGUI import ChessGUI
+
 if __name__ == "__main__":
-    MainMenu().run()
-    print(1+1)
+    game = ChessGUI()
+    game.run()
