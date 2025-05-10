@@ -284,7 +284,7 @@ class ChessGUI:
             self.ai.set_stockfish_strength(15)
         elif self.difficulty == "Very Hard":
             self.ai.depth = 5
-            self.ai.set_stockfish_strength(20)
+            self.ai.set_stockfish_strength(10)
         self.status_text = f"Difficulty set: {self.difficulty}"
 
     def toggle_stockfish_battle(self):
