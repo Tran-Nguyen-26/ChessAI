@@ -12,10 +12,9 @@ KNIGHT_VALUE = 320
 BISHOP_VALUE = 330
 ROOK_VALUE = 500
 QUEEN_VALUE = 900
-KING_VALUE = 20000  # High value to prioritize king safety
+KING_VALUE = 20000
 
-# Position tables for each piece
-# Pawns are stronger as they advance and control the center
+# Position tables (unchanged for brevity)
 PAWN_TABLE = [
     0,  0,  0,  0,  0,  0,  0,  0,
     50, 50, 50, 50, 50, 50, 50, 50,
@@ -27,7 +26,6 @@ PAWN_TABLE = [
     0,  0,  0,  0,  0,  0,  0,  0
 ]
 
-# Knights are most effective in the center
 KNIGHT_TABLE = [
     -50,-40,-30,-30,-30,-30,-40,-50,
     -40,-20,  0,  0,  0,  0,-20,-40,
@@ -39,7 +37,6 @@ KNIGHT_TABLE = [
     -50,-40,-30,-30,-30,-30,-40,-50
 ]
 
-# Bishops prefer long diagonals
 BISHOP_TABLE = [
     -20,-10,-10,-10,-10,-10,-10,-20,
     -10,  0,  0,  0,  0,  0,  0,-10,
@@ -51,7 +48,6 @@ BISHOP_TABLE = [
     -20,-10,-10,-10,-10,-10,-10,-20
 ]
 
-# Rooks are stronger on open files
 ROOK_TABLE = [
     0,  0,  0,  0,  0,  0,  0,  0,
     5, 10, 10, 10, 10, 10, 10,  5,
@@ -63,7 +59,6 @@ ROOK_TABLE = [
     0,  0,  0,  5,  5,  0,  0,  0
 ]
 
-# Queen combines value of rook and bishop
 QUEEN_TABLE = [
     -20,-10,-10, -5, -5,-10,-10,-20,
     -10,  0,  0,  0,  0,  0,  0,-10,
@@ -75,7 +70,6 @@ QUEEN_TABLE = [
     -20,-10,-10, -5, -5,-10,-10,-20
 ]
 
-# King prefers safety (different tables for middlegame and endgame)
 KING_MIDDLE_TABLE = [
     -30,-40,-40,-50,-50,-40,-40,-30,
     -30,-40,-40,-50,-50,-40,-40,-30,
@@ -101,17 +95,20 @@ KING_END_TABLE = [
 class ChessAI:
     def __init__(self, depth=4, time_limit=5):
         self.depth = depth
-        self.time_limit = time_limit  # Maximum time in seconds
+        self.time_limit = time_limit
         self.board = chess.Board()
         self.transposition_table = {}
+        self.killer_moves = {}  # Store killer moves for each depth
         self.nodes_searched = 0
+        self.max_nodes = 1000000  # Limit to prevent freeze
         self.best_move_found = None
+        self.eval_cache = {}
 
-        self.use_stockfish = True  # Mặc định sử dụng Stockfish nếu có thể
-        self.stockfish_path = self._find_stockfish()  # Tìm đường dẫn đến Stockfish
+        self.use_stockfish = True
+        self.stockfish_path = self._find_stockfish()
         self.stockfish_process = None
-        self.stockfish_strength = 20  # Cường độ mặc định (1-20)
-        self.use_stockfish_as_opponent = False  # Chế độ đấu với Stockfish
+        self.stockfish_strength = 20
+        self.use_stockfish_as_opponent = False
 
         self.piece_values = {
             chess.PAWN: PAWN_VALUE,
@@ -122,26 +119,26 @@ class ChessAI:
             chess.KING: KING_VALUE
         }
 
-        # Khởi tạo Stockfish nếu có
         if self.stockfish_path and self.use_stockfish:
             self._init_stockfish()
-        
+
     def reset_board(self):
-        """Reset the board to starting position"""
         self.board = chess.Board()
         self.transposition_table = {}
-        
+        self.killer_moves = {}
+        self.eval_cache = {}
+
     def set_board_from_fen(self, fen):
-        """Set board from FEN notation"""
         try:
             self.board = chess.Board(fen)
             self.transposition_table = {}
+            self.killer_moves = {}
+            self.eval_cache = {}
             return True
         except ValueError:
             return False
-    
+
     def make_move(self, move):
-        """Make a move on the board"""
         try:
             if isinstance(move, str):
                 move = chess.Move.from_uci(move)
@@ -152,635 +149,318 @@ class ChessAI:
         except Exception as e:
             print(f"Error making move: {e}")
             return False
-    
+
     def get_ai_move(self):
-        """Lấy nước đi từ AI hoặc Stockfish tùy chế độ"""
         if self.use_stockfish_as_opponent and self.board.turn == chess.BLACK:
-            # Cho Stockfish đi quân đen
-            return self._get_stockfish_move(1000)  # 1 giây suy nghĩ
+            return self._get_stockfish_move(1000)
         else:
-            # Sử dụng AI thuật toán riêng cho quân trắng
             return self._get_internal_ai_move()
 
     def _get_internal_ai_move(self):
-        """Find the best move using iterative deepening with alpha-beta pruning"""
-        
-        # If there's only one legal move, play it immediately
         legal_moves = list(self.board.legal_moves)
+        if not legal_moves:
+            return None
         if len(legal_moves) == 1:
             return legal_moves[0]
 
-        # Sử dụng Stockfish nếu được kích hoạt và sẵn có
         if self.use_stockfish and self.stockfish_process:
-            # Chuyển đổi độ khó thành thời gian suy nghĩ cho Stockfish
-            thinking_time = 100  # ms
-            if self.depth <= 2:  # Dễ
-                thinking_time = 100
-            elif self.depth == 3:  # Trung bình
-                thinking_time = 500
-            elif self.depth == 4:  # Khó
-                thinking_time = 1000
-            else:  # Rất khó
-                thinking_time = 2000
-            
+            thinking_time = {2: 100, 3: 500, 4: 1000, 5: 2000}.get(self.depth, 1000)
             move = self._get_stockfish_move(thinking_time)
             if move:
-                print("Đang sử dụng nước đi từ Stockfish:", move)
+                print("Using Stockfish move:", move)
                 return move
-            else:
-                print("Không nhận được nước đi từ Stockfish, chuyển sang thuật toán riêng")
-        else:
-            print("Đang sử dụng thuật toán riêng (không sử dụng Stockfish)")
-        
+            print("Stockfish failed, falling back to internal AI")
+
         self.nodes_searched = 0
         start_time = time.time()
         self.best_move_found = None
-        
-        # Iterative deepening
+        max_time = self.time_limit
+
+        # Dynamic time management
+        complexity_factor = min(1.5, 1 + len(legal_moves) / 20)
+        max_time *= complexity_factor
+
         for current_depth in range(1, self.depth + 1):
             alpha = float('-inf')
             beta = float('inf')
             best_score = float('-inf')
-            
-            # Sort moves for better pruning efficiency
-            moves = self._order_moves(legal_moves)
-            
+            moves = self._order_moves(legal_moves, current_depth)
+
             for move in moves:
                 self.board.push(move)
-                score = -self._alpha_beta(current_depth - 1, -beta, -alpha)
+                score = -self._alpha_beta(current_depth - 1, -beta, -alpha, start_time, max_time)
                 self.board.pop()
-                
+
                 if score > best_score:
                     best_score = score
                     self.best_move_found = move
-                
+
                 alpha = max(alpha, score)
-                
+
+                if time.time() - start_time > max_time or self.nodes_searched > self.max_nodes:
+                    break
+
             print(f"Depth {current_depth}: Best move = {self.best_move_found}, Score = {best_score}")
-            
-            # Check if time limit is exceeded
-            if time.time() - start_time > self.time_limit:
-                print(f"Time limit reached after depth {current_depth}")
+
+            if time.time() - start_time > max_time or self.nodes_searched > self.max_nodes:
+                print(f"Stopped at depth {current_depth} due to time or node limit")
                 break
-                
+
         elapsed_time = time.time() - start_time
         print(f"Searched {self.nodes_searched} nodes in {elapsed_time:.2f} seconds")
-        
-        # Fallback to a random move if no best move was found (shouldn't happen)
+
         if self.best_move_found is None and legal_moves:
             print("Warning: No best move found, selecting random move")
             self.best_move_found = random.choice(legal_moves)
-            
+
         return self.best_move_found
-    
+
     def __del__(self):
-        """Dọn dẹp khi đối tượng bị hủy"""
         if self.stockfish_process:
             self._send_to_stockfish("quit")
             self.stockfish_process.terminate()
-            self.stockfish_process = None
-    
-    def _order_moves(self, moves):
-        """Order moves to improve alpha-beta pruning efficiency"""
+
+    def _order_moves(self, moves, depth):
         scored_moves = []
-        
+        killer_move = self.killer_moves.get(depth, None)
+
         for move in moves:
             score = 0
-            # Prioritize captures by victim-aggressor value
+            if move == killer_move:
+                score += 1000  # Prioritize killer move
             if self.board.is_capture(move):
                 victim_square = move.to_square
                 victim_piece = self.board.piece_at(victim_square)
-                
-                # Handle en passant captures
                 if self.board.is_en_passant(move):
-                    score = 10 * PAWN_VALUE
+                    score += 10 * PAWN_VALUE
                 elif victim_piece:
-                    # MVV-LVA (Most Valuable Victim - Least Valuable Aggressor)
                     aggressor_piece = self.board.piece_at(move.from_square)
-                    score = 10 * self.piece_values[victim_piece.piece_type] - self.piece_values[aggressor_piece.piece_type]
-            
-            # Prioritize promotions
+                    score += 10 * self.piece_values[victim_piece.piece_type] - self.piece_values[aggressor_piece.piece_type]
             if move.promotion:
                 score += 900 if move.promotion == chess.QUEEN else 500
-                
-            # Prioritize checks
             self.board.push(move)
             if self.board.is_check():
-                score += 50
+                score += 100
             self.board.pop()
-            
-            # Prioritize castling
             if self.board.is_castling(move):
                 score += 60
-                
             scored_moves.append((move, score))
-            
-        # Sort moves by score in descending order
+
         scored_moves.sort(key=lambda x: x[1], reverse=True)
         return [move for move, _ in scored_moves]
-    
-    def _alpha_beta(self, depth, alpha, beta):
-        """Alpha-beta pruning search algorithm"""
+
+    def _alpha_beta(self, depth, alpha, beta, start_time, max_time):
         self.nodes_searched += 1
-        
-        # Check transposition table
+        if self.nodes_searched > self.max_nodes or time.time() - start_time > max_time:
+            return self._evaluate_position()  # Early exit
+
         board_hash = hash(self.board._transposition_key())
-        if board_hash in self.transposition_table and self.transposition_table[board_hash][0] >= depth:
-            return self.transposition_table[board_hash][1]
-            
-        # Check terminal states
+        tt_entry = self.transposition_table.get(board_hash)
+        if tt_entry and tt_entry[0] >= depth:
+            return tt_entry[1]
+
         if self.board.is_checkmate():
             return -10000 if self.board.turn else 10000
         if self.board.is_stalemate() or self.board.is_insufficient_material():
             return 0
-            
-        # Quiescence search at leaf nodes to handle horizon effect
+
         if depth <= 0:
-            return self._quiescence_search(alpha, beta)
-        
-        # Generate and order moves
-        moves = self._order_moves(list(self.board.legal_moves))
-        
+            return self._quiescence_search(alpha, beta, start_time, max_time)
+
+        moves = self._order_moves(list(self.board.legal_moves), depth)
         best_score = float('-inf')
         for move in moves:
             self.board.push(move)
-            score = -self._alpha_beta(depth - 1, -beta, -alpha)
+            score = -self._alpha_beta(depth - 1, -beta, -alpha, start_time, max_time)
             self.board.pop()
-            
-            best_score = max(best_score, score)
+            if score > best_score:
+                best_score = score
+                if score >= beta:
+                    self.killer_moves[depth] = move  # Store killer move
             alpha = max(alpha, score)
             if alpha >= beta:
-                break  # Beta cutoff
-                
-        # Store result in transposition table
+                break
         self.transposition_table[board_hash] = (depth, best_score)
         return best_score
-    
-    def _quiescence_search(self, alpha, beta, depth=0, max_depth=3):
-        """Quiescence search to evaluate only quiet positions"""
-        # Prevent excessive depth in quiescence search
-        if depth >= max_depth:
+
+    def _quiescence_search(self, alpha, beta, start_time, max_time, depth=0, max_depth=3):
+        if depth >= max_depth or time.time() - start_time > max_time or self.nodes_searched > self.max_nodes:
             return self._evaluate_position()
-            
+
         stand_pat = self._evaluate_position()
-        
-        # Delta pruning
         if stand_pat >= beta:
             return beta
         if alpha < stand_pat:
             alpha = stand_pat
-            
-        # Look at captures only
-        for move in self._order_moves([m for m in self.board.legal_moves if self.board.is_capture(m)]):
+
+        moves = [m for m in self.board.legal_moves if self.board.is_capture(m) or self.board.gives_check(m)]
+        moves = self._order_moves(moves, depth)
+        for move in moves[:10]:  # Limit to top 10 moves to reduce computation
             self.board.push(move)
-            score = -self._quiescence_search(-beta, -alpha, depth + 1, max_depth)
+            score = -self._quiescence_search(-beta, -alpha, start_time, max_time, depth + 1, max_depth)
             self.board.pop()
-            
             if score >= beta:
                 return beta
             if score > alpha:
                 alpha = score
-                
         return alpha
-    
+
     def _evaluate_position(self):
-        """Evaluate the current board position"""
+        board_hash = hash(self.board._transposition_key())
+        if board_hash in self.eval_cache:
+            return self.eval_cache[board_hash]
+
         if self.board.is_checkmate():
-            return -10000 if self.board.turn else 10000
-            
-        if self.board.is_stalemate() or self.board.is_insufficient_material():
-            return 0  # Draw
-        
-        total_score = 0
-        is_endgame = self._is_endgame()
-        
-        # Material and position evaluation
-        for square in chess.SQUARES:
-            piece = self.board.piece_at(square)
-            if not piece:
-                continue
-                
-            # Basic piece value
-            value = self.piece_values[piece.piece_type]
-            
-            # Position value based on piece-square tables
-            position_value = 0
-            if piece.piece_type == chess.PAWN:
-                position_value = PAWN_TABLE[square if piece.color else 63 - square]
-            elif piece.piece_type == chess.KNIGHT:
-                position_value = KNIGHT_TABLE[square if piece.color else 63 - square]
-            elif piece.piece_type == chess.BISHOP:
-                position_value = BISHOP_TABLE[square if piece.color else 63 - square]
-            elif piece.piece_type == chess.ROOK:
-                position_value = ROOK_TABLE[square if piece.color else 63 - square]
-            elif piece.piece_type == chess.QUEEN:
-                position_value = QUEEN_TABLE[square if piece.color else 63 - square]
-            elif piece.piece_type == chess.KING:
-                position_value = KING_END_TABLE[square if piece.color else 63 - square] if is_endgame else KING_MIDDLE_TABLE[square if piece.color else 63 - square]
-            
-            # Add or subtract based on piece color
-            if piece.color == chess.WHITE:
-                total_score += value + position_value
-            else:
-                total_score -= value + position_value
-        
-        # Additional evaluation factors
-        total_score += self._evaluate_center_control()
-        total_score += self._evaluate_pawn_structure()
-        total_score += self._evaluate_king_safety(is_endgame)
-        total_score += self._evaluate_mobility()
-        
-        # Return score from current player's perspective
-        return total_score if self.board.turn == chess.WHITE else -total_score
-    
+            score = -10000 if self.board.turn else 10000
+        elif self.board.is_stalemate() or self.board.is_insufficient_material():
+            score = 0
+        else:
+            score = 0
+            is_endgame = self._is_endgame()
+            for square in chess.SQUARES:
+                piece = self.board.piece_at(square)
+                if not piece:
+                    continue
+                value = self.piece_values[piece.piece_type]
+                position_value = 0
+                if piece.piece_type == chess.PAWN:
+                    position_value = PAWN_TABLE[square if piece.color else 63 - square]
+                elif piece.piece_type == chess.KNIGHT:
+                    position_value = KNIGHT_TABLE[square if piece.color else 63 - square]
+                elif piece.piece_type == chess.BISHOP:
+                    position_value = BISHOP_TABLE[square if piece.color else 63 - square]
+                elif piece.piece_type == chess.ROOK:
+                    position_value = ROOK_TABLE[square if piece.color else 63 - square]
+                elif piece.piece_type == chess.QUEEN:
+                    position_value = QUEEN_TABLE[square if piece.color else 63 - square]
+                elif piece.piece_type == chess.KING:
+                    position_value = KING_END_TABLE[square if piece.color else 63 - square] if is_endgame else KING_MIDDLE_TABLE[square if piece.color else 63 - square]
+                score += (value + position_value) if piece.color == chess.WHITE else -(value + position_value)
+            score += self._evaluate_center_control()
+            score = score if self.board.turn == chess.WHITE else -score
+
+        self.eval_cache[board_hash] = score
+        return score
+
     def _evaluate_center_control(self):
-        """Evaluate control of the center"""
         score = 0
         central_squares = [chess.D4, chess.E4, chess.D5, chess.E5]
-        extended_center = [chess.C3, chess.D3, chess.E3, chess.F3, 
-                          chess.C4, chess.F4, 
-                          chess.C5, chess.F5, 
-                          chess.C6, chess.D6, chess.E6, chess.F6]
-        
-        # Score for pieces in center
         for square in central_squares:
             piece = self.board.piece_at(square)
             if piece:
                 bonus = 10 if piece.piece_type in [chess.PAWN, chess.KNIGHT] else 5
                 score += bonus if piece.color == chess.WHITE else -bonus
-        
-        # Score for control of center and extended center
-        for square in central_squares:
             score += 8 * len(self.board.attackers(chess.WHITE, square))
             score -= 8 * len(self.board.attackers(chess.BLACK, square))
-        
-        for square in extended_center:
-            score += 4 * len(self.board.attackers(chess.WHITE, square))
-            score -= 4 * len(self.board.attackers(chess.BLACK, square))
-            
         return score
-    
-    def _evaluate_pawn_structure(self):
-        """Evaluate pawn structure"""
-        score = 0
-        
-        # Passed pawns
-        white_pawns = self.board.pieces(chess.PAWN, chess.WHITE)
-        black_pawns = self.board.pieces(chess.PAWN, chess.BLACK)
-        
-        # Reward passed pawns
-        for square in white_pawns:
-            rank = chess.square_rank(square)
-            file = chess.square_file(square)
-            is_passed = True
-            
-            # Check if there are any black pawns that can block this pawn
-            for f in range(max(0, file - 1), min(7, file + 1) + 1):
-                for r in range(rank + 1, 8):
-                    if chess.square(f, r) in black_pawns:
-                        is_passed = False
-                        break
-                if not is_passed:
-                    break
-                    
-            if is_passed:
-                score += 20 + 10 * rank  # More value for advanced passed pawns
-        
-        for square in black_pawns:
-            rank = chess.square_rank(square)
-            file = chess.square_file(square)
-            is_passed = True
-            
-            # Check if there are any white pawns that can block this pawn
-            for f in range(max(0, file - 1), min(7, file + 1) + 1):
-                for r in range(0, rank):
-                    if chess.square(f, r) in white_pawns:
-                        is_passed = False
-                        break
-                if not is_passed:
-                    break
-                    
-            if is_passed:
-                score -= 20 + 10 * (7 - rank)  # More value for advanced passed pawns
-        
-        # Penalize doubled pawns
-        for file_num in range(8):  # Files from 0 (a-file) to 7 (h-file)
-            file_mask = chess.BB_FILES[file_num]
-            
-            white_pawns_in_file = len(white_pawns & chess.SquareSet(file_mask))
-            black_pawns_in_file = len(black_pawns & chess.SquareSet(file_mask))
-            
-            if white_pawns_in_file > 1:
-                score -= 10 * (white_pawns_in_file - 1)
-            if black_pawns_in_file > 1:
-                score += 10 * (black_pawns_in_file - 1)
-                
-        # Penalize isolated pawns
-        for square in white_pawns:
-            file_num = chess.square_file(square)
-            isolated = True
-            
-            # Check adjacent files for friendly pawns
-            for adj_file in [max(0, file_num - 1), min(7, file_num + 1)]:
-                if adj_file == file_num:
-                    continue
-                if white_pawns & chess.SquareSet(chess.BB_FILES[adj_file]):
-                    isolated = False
-                    break
-                    
-            if isolated:
-                score -= 15
-                
-        for square in black_pawns:
-            file_num = chess.square_file(square)
-            isolated = True
-            
-            # Check adjacent files for friendly pawns
-            for adj_file in [max(0, file_num - 1), min(7, file_num + 1)]:
-                if adj_file == file_num:
-                    continue
-                if black_pawns & chess.SquareSet(chess.BB_FILES[adj_file]):
-                    isolated = False
-                    break
-                    
-            if isolated:
-                score += 15
-                
-        return score
-    
-    def _evaluate_king_safety(self, is_endgame):
-        """Evaluate king safety"""
-        score = 0
-        
-        if not is_endgame:
-            # Castling rights
-            if self.board.has_kingside_castling_rights(chess.WHITE):
-                score += 30
-            if self.board.has_queenside_castling_rights(chess.WHITE):
-                score += 20
-            if self.board.has_kingside_castling_rights(chess.BLACK):
-                score -= 30
-            if self.board.has_queenside_castling_rights(chess.BLACK):
-                score -= 20
-                
-            # King safety - pawn shield
-            white_king_square = self.board.king(chess.WHITE)
-            black_king_square = self.board.king(chess.BLACK)
-            
-            if white_king_square is not None:
-                white_king_file = chess.square_file(white_king_square)
-                white_king_rank = chess.square_rank(white_king_square)
-                
-                # Check for pawn shield in front of king
-                for f in range(max(0, white_king_file - 1), min(7, white_king_file + 1) + 1):
-                    for r in range(white_king_rank + 1, min(white_king_rank + 3, 8)):
-                        square = chess.square(f, r)
-                        piece = self.board.piece_at(square)
-                        if piece and piece.piece_type == chess.PAWN and piece.color == chess.WHITE:
-                            score += 10
-            
-            if black_king_square is not None:
-                black_king_file = chess.square_file(black_king_square)
-                black_king_rank = chess.square_rank(black_king_square)
-                
-                # Check for pawn shield in front of king
-                for f in range(max(0, black_king_file - 1), min(7, black_king_file + 1) + 1):
-                    for r in range(max(black_king_rank - 2, 0), black_king_rank):
-                        square = chess.square(f, r)
-                        piece = self.board.piece_at(square)
-                        if piece and piece.piece_type == chess.PAWN and piece.color == chess.BLACK:
-                            score -= 10
-                            
-            # King attack zone
-            if white_king_square is not None:
-                attack_zone = self._get_king_attack_zone(white_king_square)
-                black_attackers = 0
-                
-                for square in attack_zone:
-                    attackers = self.board.attackers(chess.BLACK, square)
-                    black_attackers += len(attackers)
-                    
-                # Penalize heavily for attackers near the king
-                score -= 5 * black_attackers
-                
-            if black_king_square is not None:
-                attack_zone = self._get_king_attack_zone(black_king_square)
-                white_attackers = 0
-                
-                for square in attack_zone:
-                    attackers = self.board.attackers(chess.WHITE, square)
-                    white_attackers += len(attackers)
-                    
-                # Penalize heavily for attackers near the king
-                score += 5 * white_attackers
-        
-        return score
-    
-    def _get_king_attack_zone(self, king_square):
-        """Get squares around the king that constitute the attack zone"""
-        attack_zone = set()
-        king_file = chess.square_file(king_square)
-        king_rank = chess.square_rank(king_square)
-        
-        for f in range(max(0, king_file - 1), min(7, king_file + 1) + 1):
-            for r in range(max(0, king_rank - 1), min(7, king_rank + 1) + 1):
-                square = chess.square(f, r)
-                if square != king_square:
-                    attack_zone.add(square)
-                    
-        return attack_zone
-    
-    def _evaluate_mobility(self):
-        """Evaluate piece mobility"""
-        # Save current turn
-        original_turn = self.board.turn
-        score = 0
-        
-        # Evaluate white mobility
-        self.board.turn = chess.WHITE
-        white_mobility = len(list(self.board.legal_moves))
-        
-        # Evaluate black mobility
-        self.board.turn = chess.BLACK
-        black_mobility = len(list(self.board.legal_moves))
-        
-        # Restore original turn
-        self.board.turn = original_turn
-        
-        mobility_score = 2 * (white_mobility - black_mobility)
-        
-        # Add check/checkmate threat bonus
-        if self.board.is_check():
-            if self.board.turn == chess.WHITE:
-                score -= 50  # White is in check
-            else:
-                score += 50  # Black is in check
-        
-        return score + mobility_score
-    
+
     def _is_endgame(self):
-        """Determine if the position is in the endgame phase"""
-        # Count major pieces (queens and rooks)
         queens = len(self.board.pieces(chess.QUEEN, chess.WHITE)) + len(self.board.pieces(chess.QUEEN, chess.BLACK))
         rooks = len(self.board.pieces(chess.ROOK, chess.WHITE)) + len(self.board.pieces(chess.ROOK, chess.BLACK))
         total_pieces = queens + rooks + len(self.board.pieces(chess.KNIGHT, chess.WHITE)) + len(self.board.pieces(chess.KNIGHT, chess.BLACK)) + len(self.board.pieces(chess.BISHOP, chess.WHITE)) + len(self.board.pieces(chess.BISHOP, chess.BLACK))
-        
-        # Endgame if:
-        # 1. No queens, or
-        # 2. Each side has at most one major piece and less than 6 total pieces
         return queens == 0 or (queens + rooks <= 2 and total_pieces <= 6)
-    
+
     def get_board_evaluation(self):
-        """Get current board evaluation"""
         return self._evaluate_position()
-    
+
     def set_depth(self, depth):
-        """Set search depth"""
         self.depth = max(1, depth)
-        
+
     def set_time_limit(self, seconds):
-        """Set time limit in seconds"""
         self.time_limit = max(1, seconds)
 
     def _find_stockfish(self):
-        """Tìm đường dẫn đến tệp thực thi Stockfish"""
-        # Thử tìm trong thư mục hiện tại hoặc thư mục 'engines'
         common_paths = []
-        
-         # Thêm đường dẫn tương đối trong thư mục dự án
         current_dir = os.path.dirname(__file__)
         common_paths.append(os.path.join(current_dir, 'stockfish'))
         common_paths.append(os.path.join(current_dir, 'engines', 'stockfish'))
-        
-        # Thêm đường dẫn dựa trên hệ điều hành
         if platform.system() == 'Windows':
-            common_paths.append(os.path.join(os.path.dirname(__file__), 'stockfish.exe'))
-            common_paths.append(os.path.join(os.path.dirname(__file__), 'engines', 'stockfish.exe'))
-
-            common_paths.append(os.path.join(os.path.dirname(__file__), 'stockfish-windows-x86-64-avx2.exe'))
-            common_paths.append(os.path.join(os.path.dirname(__file__), 'engines', 'stockfish', 'stockfish-windows-x86-64-avx2.exe'))
-
-            # Thêm đường dẫn cài đặt phổ biến của Windows
+            common_paths.append(os.path.join(current_dir, 'stockfish.exe'))
+            common_paths.append(os.path.join(current_dir, 'engines', 'stockfish.exe'))
+            common_paths.append(os.path.join(current_dir, 'stockfish-windows-x86-64-avx2.exe'))
+            common_paths.append(os.path.join(current_dir, 'engines', 'stockfish', 'stockfish-windows-x86-64-avx2.exe'))
             program_files = os.environ.get('ProgramFiles', 'C:\\Program Files')
             common_paths.append(os.path.join(program_files, 'Stockfish', 'stockfish.exe'))
-
             common_paths.append(os.path.join(program_files, 'Stockfish', 'stockfish-windows-x86-64-avx2.exe'))
         elif platform.system() == 'Linux':
-            # Kiểm tra nếu stockfish có trong PATH
             stockfish_in_path = shutil.which('stockfish')
             if stockfish_in_path:
                 return stockfish_in_path
             common_paths.append('/usr/games/stockfish')
             common_paths.append('/usr/local/bin/stockfish')
-        elif platform.system() == 'Darwin':  # macOS
+        elif platform.system() == 'Darwin':
             common_paths.append('/usr/local/bin/stockfish')
             common_paths.append('/opt/homebrew/bin/stockfish')
-        
-        # Kiểm tra từng đường dẫn
         for path in common_paths:
             if os.path.isfile(path) and os.access(path, os.X_OK):
                 return path
-        
-        print("Không tìm thấy Stockfish. Sử dụng AI tích hợp.")
+        print("Stockfish not found. Using internal AI.")
         return None
-    
+
     def _init_stockfish(self):
-        """Khởi tạo quá trình Stockfish"""
         if not self.stockfish_path:
             self.use_stockfish = False
             return False
-        
         try:
-            # Khởi tạo quá trình Stockfish
             self.stockfish_process = subprocess.Popen(
                 self.stockfish_path,
                 universal_newlines=True,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                bufsize=1  # Line buffered
+                bufsize=1
             )
-            
-            # Gửi các lệnh khởi tạo
             self._send_to_stockfish("uci")
             self._send_to_stockfish(f"setoption name Skill Level value {self.stockfish_strength}")
             self._send_to_stockfish("ucinewgame")
             self._send_to_stockfish("isready")
-            
-            # Đọc phản hồi cho đến khi gặp "readyok"
             while True:
                 line = self.stockfish_process.stdout.readline().strip()
                 if line == "readyok":
                     break
-            
             return True
         except Exception as e:
-            print(f"Lỗi khi khởi tạo Stockfish: {e}")
+            print(f"Error initializing Stockfish: {e}")
             self.use_stockfish = False
             return False
-    
+
     def _send_to_stockfish(self, command):
-        """Gửi lệnh đến Stockfish"""
         if self.stockfish_process and self.stockfish_process.stdin:
             self.stockfish_process.stdin.write(command + "\n")
             self.stockfish_process.stdin.flush()
-    
+
     def _get_stockfish_move(self, time_ms=1000):
-        """Lấy nước đi từ Stockfish với giới hạn thời gian (ms)"""
         if not self.stockfish_process:
             return None
-        
-        # Gửi trạng thái bàn cờ hiện tại
         self._send_to_stockfish(f"position fen {self.board.fen()}")
-        
-        # Yêu cầu Stockfish tìm nước đi tốt nhất
-        depth_cmd = f"go depth {self.depth}"
         time_cmd = f"go movetime {time_ms}"
-        
-        # Chọn lệnh dựa vào độ khó
-        if self.stockfish_strength < 10:  # Dễ
-            self._send_to_stockfish(depth_cmd)
-        else:  # Khó hơn, sử dụng giới hạn thời gian
-            self._send_to_stockfish(time_cmd)
-        
+        self._send_to_stockfish(time_cmd)
         best_move = None
         while True:
             line = self.stockfish_process.stdout.readline().strip()
             if line.startswith("bestmove"):
                 best_move = line.split()[1]
                 break
-        
-        # Chuyển đổi định dạng nước đi
         if best_move:
             try:
                 return chess.Move.from_uci(best_move)
             except ValueError:
-                print(f"Lỗi định dạng nước đi Stockfish: {best_move}")
+                print(f"Invalid Stockfish move format: {best_move}")
                 return None
-        
         return None
-    
+
     def set_stockfish_strength(self, level):
-        """Đặt độ mạnh của Stockfish (1-20)"""
         self.stockfish_strength = max(1, min(20, level))
         if self.stockfish_process:
             self._send_to_stockfish(f"setoption name Skill Level value {self.stockfish_strength}")
             self._send_to_stockfish("ucinewgame")
-    
+
     def toggle_stockfish(self, use_stockfish):
-        """Bật/tắt sử dụng Stockfish"""
         self.use_stockfish = use_stockfish
         if use_stockfish and not self.stockfish_process and self.stockfish_path:
             self._init_stockfish()
 
-    def set_stockfish_strength(self, level):
-        """Đặt độ khó cho Stockfish (1-20)"""
-        self.stockfish_strength = max(1, min(20, level))
-        if self.stockfish_process:
-            self._send_to_stockfish(f"setoption name Skill Level value {self.stockfish_strength}")
-
     def toggle_stockfish_opponent(self, enable):
-        """Bật/tắt chế độ đấu với Stockfish"""
         self.use_stockfish_as_opponent = enable
         if enable and not self.stockfish_process and self.stockfish_path:
             self._init_stockfish()
