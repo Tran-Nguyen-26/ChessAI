@@ -58,5 +58,6 @@ ChessAI/
 ├── ai.py                      # Thuật toán AI (minimax, alpha-beta, đánh giá cờ)
 ├── main.py                    # File khởi chạy chính của chương trình
 └── README.md                  # Tài liệu mô tả dự án
+
 ## 🎥 Link video demo
 https://drive.google.com/file/d/1GPocG0bHH7V2hyUsDxHW3qoRM2qh_vzt/view?usp=drive_link
