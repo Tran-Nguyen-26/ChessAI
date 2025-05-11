@@ -13,34 +13,36 @@ class ChessGUI:
         pygame.init()
         self.square_size = 80
         self.board_size = self.square_size * 8
-        self.margin = 40  # Lề cho việc hiển thị tọa độ
-        self.window_size = (self.board_size + self.margin * 2, self.board_size + self.margin * 2 + 60)  # Thêm không gian cho controls
+        self.margin = 40
+        self.window_size = (self.board_size + self.margin * 2, self.board_size + self.margin * 2 + 100)  # Tăng chiều cao để chứa thêm nút
         
         self.screen = pygame.display.set_mode(self.window_size)
-        pygame.display.set_caption("Cờ vua đấu với AI")
+        pygame.display.set_caption("Cờ vua - AI vs Stockfish")
         
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Arial", 14)
         self.status_font = pygame.font.SysFont("Arial", 16)
         
-        self.ai = ChessAI(depth=3)  # Khởi tạo AI với độ sâu mặc định
-        
+        self.ai = ChessAI(depth=3)
         self.selected_square = None
         self.possible_moves = []
-        self.player_color = chess.WHITE  # Mặc định người chơi quân trắng
-        
+        self.player_color = chess.WHITE
         self.status_text = "Mời bạn đi trước (Quân trắng)"
         self.difficulty = "Trung bình"
         
-        # Tải hình ảnh quân cờ
+        # Thêm biến cho chế độ AI vs Stockfish
+        self.ai_vs_stockfish_mode = False
+        self.ai_vs_stockfish_btn = pygame.Rect(self.margin + 370, self.board_size + self.margin + 20, 150, 30)
+        self.stockfish_level_btn = pygame.Rect(self.margin, self.board_size + self.margin + 60, 150, 30)
+        self.ai_level_btn = pygame.Rect(self.margin + 170, self.board_size + self.margin + 60, 150, 30)
+        
         self.load_images()
         
-        # Tạo các button
+        # Các button khác
         self.new_game_btn = pygame.Rect(self.margin, self.board_size + self.margin + 20, 100, 30)
         self.switch_sides_btn = pygame.Rect(self.margin + 120, self.board_size + self.margin + 20, 100, 30)
         self.difficulty_btn = pygame.Rect(self.margin + 240, self.board_size + self.margin + 20, 120, 30)
         
-        # Vòng lặp chính của game
         self.running = True
         self.need_ai_move = False
         
@@ -50,7 +52,7 @@ class ChessGUI:
         
         # Tải hình ảnh quân cờ từ file
         try:
-            pieces_image = pygame.image.load("assets/images/Chess_Pieces.png")
+            pieces_image = pygame.image.load("ChessAI/assets/images/Chess_Pieces.png")
             
             # Kích thước mỗi quân cờ trong ảnh
             piece_width = pieces_image.get_width() // 6  # 6 quân cờ
@@ -143,19 +145,36 @@ class ChessGUI:
                 if piece_symbol in self.piece_images:
                     self.screen.blit(self.piece_images[piece_symbol], (x, y))
         
-        # Vẽ các button
+        # Vẽ các button chính
         pygame.draw.rect(self.screen, (200, 200, 200), self.new_game_btn)
         pygame.draw.rect(self.screen, (200, 200, 200), self.switch_sides_btn)
         pygame.draw.rect(self.screen, (200, 200, 200), self.difficulty_btn)
+        
+        # Vẽ nút AI vs Stockfish với màu khác khi active
+        btn_color = (170, 255, 170) if self.ai_vs_stockfish_mode else (200, 200, 200)
+        pygame.draw.rect(self.screen, btn_color, self.ai_vs_stockfish_btn)
         
         # Vẽ text cho các button
         new_game_text = self.font.render("Game mới", True, (0, 0, 0))
         switch_sides_text = self.font.render("Đổi bên", True, (0, 0, 0))
         difficulty_text = self.font.render(f"Độ khó: {self.difficulty}", True, (0, 0, 0))
+        ai_vs_sf_text = self.font.render("AI vs Stockfish", True, (0, 0, 0))
         
         self.screen.blit(new_game_text, (self.new_game_btn.x + 10, self.new_game_btn.y + 8))
         self.screen.blit(switch_sides_text, (self.switch_sides_btn.x + 10, self.switch_sides_btn.y + 8))
         self.screen.blit(difficulty_text, (self.difficulty_btn.x + 10, self.difficulty_btn.y + 8))
+        self.screen.blit(ai_vs_sf_text, (self.ai_vs_stockfish_btn.x + 10, self.ai_vs_stockfish_btn.y + 8))
+        
+        # Vẽ các button điều chỉnh level khi ở chế độ AI vs Stockfish
+        if self.ai_vs_stockfish_mode:
+            pygame.draw.rect(self.screen, (200, 200, 200), self.stockfish_level_btn)
+            pygame.draw.rect(self.screen, (200, 200, 200), self.ai_level_btn)
+            
+            sf_level_text = self.font.render(f"Stockfish: {self.ai.stockfish_skill_level}/20", True, (0, 0, 0))
+            ai_level_text = self.font.render(f"AI Depth: {self.ai.depth}", True, (0, 0, 0))
+            
+            self.screen.blit(sf_level_text, (self.stockfish_level_btn.x + 10, self.stockfish_level_btn.y + 8))
+            self.screen.blit(ai_level_text, (self.ai_level_btn.x + 10, self.ai_level_btn.y + 8))
         
         # Vẽ trạng thái
         status_text = self.status_font.render(self.status_text, True, (0, 0, 0))
@@ -174,6 +193,22 @@ class ChessGUI:
             return
         elif self.difficulty_btn.collidepoint(x, y):
             self.cycle_difficulty()
+            return
+        elif self.ai_vs_stockfish_btn.collidepoint(x, y):
+            self.toggle_ai_vs_stockfish()
+            return
+        
+        # Kiểm tra các button điều chỉnh level khi ở chế độ AI vs Stockfish
+        if self.ai_vs_stockfish_mode:
+            if self.stockfish_level_btn.collidepoint(x, y):
+                self.adjust_stockfish_level()
+                return
+            elif self.ai_level_btn.collidepoint(x, y):
+                self.adjust_ai_level()
+                return
+            
+        if self.ai_vs_stockfish_mode:
+            self.status_text = "Đang ở chế độ AI vs Stockfish!"
             return
         
         # Kiểm tra nếu click vào bàn cờ
@@ -229,17 +264,56 @@ class ChessGUI:
                     self.selected_square = None
                     self.possible_moves = []
     
+    def toggle_ai_vs_stockfish(self):
+        """Bật/tắt chế độ AI vs Stockfish"""
+        self.ai_vs_stockfish_mode = not self.ai_vs_stockfish_mode
+        
+        if self.ai_vs_stockfish_mode:
+            # Bật chế độ AI vs Stockfish
+            self.ai.toggle_ai_vs_stockfish(True)
+            self.player_color = None  # Vô hiệu hóa tương tác người chơi
+            self.status_text = "Chế độ AI vs Stockfish - Đang chạy..."
+            # Kích hoạt nước đi ngay lập tức
+            self.need_ai_move = True  # Thêm dòng này để kích hoạt AI
+        else:
+            # Tắt chế độ
+            self.ai.toggle_ai_vs_stockfish(False)
+            self.player_color = chess.WHITE
+            self.status_text = "Chế độ người chơi vs AI"
+        
+        self.new_game()
+
+    def adjust_stockfish_level(self):
+        """Điều chỉnh level của Stockfish"""
+        new_level = (self.ai.stockfish_skill_level + 5) % 25  # Xoay vòng từ 0-20
+        self.ai.set_stockfish_skill(new_level)
+        self.status_text = f"Stockfish level: {new_level}/20"
+
+    def adjust_ai_level(self):
+        """Điều chỉnh độ sâu của AI"""
+        new_depth = self.ai.depth % 5 + 1  # Xoay vòng từ 1-5
+        self.ai.set_depth(new_depth)
+        self.status_text = f"Độ sâu AI: {new_depth}"
+
     def make_ai_move(self):
         """Để AI thực hiện nước đi"""
         if self.ai.board.is_game_over():
+            self.update_game_status()
             return
             
-        # Lấy nước đi từ AI
         ai_move = self.ai.get_ai_move()
         if ai_move:
             self.ai.board.push(ai_move)
-            move_text = ai_move.uci()
-            self.status_text = f"AI đã đi: {move_text}. Đến lượt bạn."
+            
+            # Debug: In nước đi ra console
+            print(f"{'AI' if self.ai.ai_color == self.ai.board.turn else 'Stockfish'} đi: {ai_move.uci()}")
+            
+            # Cập nhật thông báo
+            if self.ai_vs_stockfish_mode:
+                player = "AI" if self.ai.board.turn != self.ai.ai_color else "Stockfish"
+                self.status_text = f"{player} đã đi: {ai_move.uci()}"
+            else:
+                self.status_text = f"AI đã đi: {ai_move.uci()}"
         
         self.need_ai_move = False
         self.update_game_status()
@@ -312,27 +386,26 @@ class ChessGUI:
     def run(self):
         """Vòng lặp chính của game"""
         while self.running:
-            # Xử lý các sự kiện
             for event in pygame.event.get():
                 if event.type == QUIT:
                     self.running = False
                 elif event.type == MOUSEBUTTONDOWN:
                     if event.button == 1:  # Nút chuột trái
                         self.handle_click(event.pos)
+                # Thêm xử lý sự kiện hẹn giờ
+                elif event.type == USEREVENT + 1:
+                    self.make_ai_move()
+                    pygame.time.set_timer(USEREVENT + 1, 0)  # Tắt hẹn giờ
             
-            # Vẽ bàn cờ
             self.draw_board()
             pygame.display.update()
             
-            # Kiểm tra nếu cần AI đi
-            if self.need_ai_move:
-                pygame.time.wait(500)  # Chờ một chút để người chơi thấy được nước đi của họ
-                self.make_ai_move()
+            # Tự động kích hoạt nước đi trong chế độ AI vs Stockfish
+            if self.ai_vs_stockfish_mode and not self.ai.board.is_game_over():
+                if not self.need_ai_move:
+                    self.need_ai_move = True
+                    pygame.time.set_timer(USEREVENT + 1, 500)  # Hẹn giờ 500ms
             
-            # Cập nhật trạng thái game
-            self.update_game_status()
-            
-            # Giới hạn FPS
             self.clock.tick(30)
         
         pygame.quit()

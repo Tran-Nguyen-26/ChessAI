@@ -1,6 +1,7 @@
 import chess
 import time
 import random
+from stockfish_engine import StockfishEngine
 
 # Piece values
 PAWN_VALUE = 100
@@ -8,10 +9,9 @@ KNIGHT_VALUE = 320
 BISHOP_VALUE = 330
 ROOK_VALUE = 500
 QUEEN_VALUE = 900
-KING_VALUE = 20000  # High value to prioritize king safety
+KING_VALUE = 20000
 
-# Position tables for each piece
-# Pawns are stronger as they advance and control the center
+# Position tables (unchanged for brevity)
 PAWN_TABLE = [
     0,  0,  0,  0,  0,  0,  0,  0,
     50, 50, 50, 50, 50, 50, 50, 50,
@@ -97,7 +97,7 @@ KING_END_TABLE = [
 class ChessAI:
     def __init__(self, depth=4, time_limit=5):
         self.depth = depth
-        self.time_limit = time_limit  # Maximum time in seconds
+        self.time_limit = time_limit
         self.board = chess.Board()
         self.transposition_table = {}
         self.nodes_searched = 0
@@ -110,23 +110,32 @@ class ChessAI:
             chess.QUEEN: QUEEN_VALUE,
             chess.KING: KING_VALUE
         }
+
+        # Cài đặt Stockfish
+        self.stockfish = StockfishEngine()
+        self.stockfish_skill_level = 20  # Mức độ mặc định của Stockfish
         
+        # Chế độ chơi
+        self.ai_vs_stockfish_mode = False  # Chế độ AI vs Stockfish
+        self.ai_color = chess.WHITE  # Màu của AI trong chế độ AI vs Stockfish
+
+    def __del__(self):
+        if self.stockfish:
+            self.stockfish.close()
+
     def reset_board(self):
-        """Reset the board to starting position"""
         self.board = chess.Board()
         self.transposition_table = {}
-        
+
     def set_board_from_fen(self, fen):
-        """Set board from FEN notation"""
         try:
             self.board = chess.Board(fen)
             self.transposition_table = {}
             return True
         except ValueError:
             return False
-    
+
     def make_move(self, move):
-        """Make a move on the board"""
         try:
             if isinstance(move, str):
                 move = chess.Move.from_uci(move)
@@ -137,55 +146,85 @@ class ChessAI:
         except Exception as e:
             print(f"Error making move: {e}")
             return False
-    
+        
     def get_ai_move(self):
-        """Find the best move using iterative deepening with alpha-beta pruning"""
+        """Lấy nước đi cho AI, có thể là AI thuật toán hoặc Stockfish tùy chế độ"""
+        if self.ai_vs_stockfish_mode:
+            # Debug: In trạng thái lượt đi
+            print(f"Lượt đi: {'AI' if self.board.turn == self.ai_color else 'Stockfish'}")
+            
+            if self.board.turn == self.ai_color:
+                # AI thuật toán đi
+                move = self._get_algorithm_move()
+                print(f"AI chọn nước: {move}")
+                return move
+            else:
+                # Stockfish đi
+                if not self.stockfish.stockfish_process:
+                    print("Lỗi: Không kết nối được với Stockfish!")
+                    return random.choice(list(self.board.legal_moves))
+                move = self.stockfish.get_move(self.board, 1000)
+                print(f"Stockfish chọn nước: {move}")
+                return move
+        else:
+            return self._get_algorithm_move()
+
+
+    def _get_algorithm_move(self):
+        """Lấy nước đi từ AI thuật toán"""
         self.nodes_searched = 0
         start_time = time.time()
         self.best_move_found = None
-        
-        # If there's only one legal move, play it immediately
+
         legal_moves = list(self.board.legal_moves)
         if len(legal_moves) == 1:
             return legal_moves[0]
-        
-        # Iterative deepening
+
+        # Tìm kiếm alpha-beta với độ sâu đã cài đặt
         for current_depth in range(1, self.depth + 1):
             alpha = float('-inf')
             beta = float('inf')
             best_score = float('-inf')
-            
-            # Sort moves for better pruning efficiency
             moves = self._order_moves(legal_moves)
-            
+
             for move in moves:
                 self.board.push(move)
                 score = -self._alpha_beta(current_depth - 1, -beta, -alpha)
                 self.board.pop()
-                
+
                 if score > best_score:
                     best_score = score
                     self.best_move_found = move
-                
+
                 alpha = max(alpha, score)
-                
-            print(f"Depth {current_depth}: Best move = {self.best_move_found}, Score = {best_score}")
-            
-            # Check if time limit is exceeded
+
+            # Kiểm tra giới hạn thời gian
             if time.time() - start_time > self.time_limit:
-                print(f"Time limit reached after depth {current_depth}")
                 break
-                
-        elapsed_time = time.time() - start_time
-        print(f"Searched {self.nodes_searched} nodes in {elapsed_time:.2f} seconds")
-        
-        # Fallback to a random move if no best move was found (shouldn't happen)
-        if self.best_move_found is None and legal_moves:
-            print("Warning: No best move found, selecting random move")
-            self.best_move_found = random.choice(legal_moves)
+
+        return self.best_move_found if self.best_move_found else random.choice(legal_moves)
+
+    def _get_stockfish_move(self):
+        """Lấy nước đi từ Stockfish"""
+        if not self.stockfish.stockfish_process:
+            return random.choice(list(self.board.legal_moves))
             
-        return self.best_move_found
-    
+        return self.stockfish.get_move(self.board, {2:100, 3:500, 4:1000, 5:2000}.get(self.depth, 1000))
+
+    def toggle_ai_vs_stockfish(self, enable):
+        """Bật/tắt chế độ AI thuật toán đấu với Stockfish"""
+        self.ai_vs_stockfish_mode = enable
+        if enable:
+            # Chọn ngẫu nhiên màu cho AI
+            self.ai_color = random.choice([chess.WHITE, chess.BLACK])
+            print(f"Chế độ AI vs Stockfish - AI chơi {'Trắng' if self.ai_color == chess.WHITE else 'Đen'}")
+
+    def set_stockfish_skill(self, level):
+        """Thiết lập mức độ mạnh yếu của Stockfish (0-20)"""
+        self.stockfish_skill_level = max(0, min(20, level))
+        if self.stockfish.stockfish_process:
+            self.stockfish._send(f"setoption name Skill Level value {self.stockfish_skill_level}")
+            
     def _order_moves(self, moves):
         """Order moves to improve alpha-beta pruning efficiency"""
         scored_moves = []
