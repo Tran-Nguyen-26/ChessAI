@@ -570,8 +570,7 @@ class ChessAI:
         queens = len(self.board.pieces(chess.QUEEN, chess.WHITE)) + len(self.board.pieces(chess.QUEEN, chess.BLACK))
         rooks = len(self.board.pieces(chess.ROOK, chess.WHITE)) + len(self.board.pieces(chess.ROOK, chess.BLACK))
         total_pieces = queens + rooks + len(self.board.pieces(chess.KNIGHT, chess.WHITE)) + len(self.board.pieces(chess.KNIGHT, chess.BLACK)) + len(self.board.pieces(chess.BISHOP, chess.WHITE)) + len(self.board.pieces(chess.BISHOP, chess.BLACK))
-        
-        # Endgame if:
+                # Endgame if:
         # 1. No queens, or
         # 2. Each side has at most one major piece and less than 6 total pieces
         return queens == 0 or (queens + rooks <= 2 and total_pieces <= 6)
