@@ -29,9 +29,16 @@ class ChessGUI:
         self.clock = pygame.time.Clock()
         # For potentially better text, ensure you have a good quality "Arial" or consider
         # pygame.font.Font("your_custom_font.ttf", 14) if you bundle a font.
-        self.font = pygame.font.SysFont("Arial", 14)
-        self.status_font = pygame.font.SysFont("Arial", 16)
 
+        try:
+            self.font = pygame.font.Font("assets/fonts/Roboto-Regular.ttf", 14)
+            self.status_font = pygame.font.Font("assets/fonts/Roboto-Medium.ttf", 16)
+            self.title_font = pygame.font.Font("assets/fonts/Roboto-Bold.ttf", 24)
+        except:
+            # Fallback nếu không tìm thấy font
+            self.font = pygame.font.SysFont("Arial", 14)
+            self.status_font = pygame.font.SysFont("Arial", 16)
+            self.title_font = pygame.font.SysFont("Arial", 24, bold=True)
         self.ai = ChessAI(depth=3)  # Assuming ChessAI class is defined elsewhere
 
         self.selected_square = None
@@ -265,22 +272,22 @@ class ChessGUI:
         elif self.stockfish_battle_mode and self.stockfish_slider.collidepoint(x, y):
             self.stockfish_level = min(20, max(1, int((x - self.stockfish_slider.x) / 5)))
             self.ai.set_stockfish_strength(self.stockfish_level)
-        
+
         if x < self.margin or x > self.board_size + self.margin or y < self.margin or y > self.board_size + self.margin:
             return
-        
+
         if self.ai.board.is_game_over() or self.ai.board.turn != self.player_color:
             return
-        
+
         col = (x - self.margin) // self.square_size
         row = (y - self.margin) // self.square_size
         square = chess.square(col, 7 - row)
-        
+
         if self.selected_square is None:
             piece = self.ai.board.piece_at(square)
             if piece and piece.color == self.player_color:
                 self.selected_square = square
-                self.possible_moves = [move.to_square for move in self.ai.board.legal_moves 
+                self.possible_moves = [move.to_square for move in self.ai.board.legal_moves
                                     if move.from_square == square]
         else:
             move = chess.Move(self.selected_square, square)
@@ -289,7 +296,7 @@ class ChessGUI:
                ((self.player_color == chess.WHITE and chess.square_rank(square) == 7) or \
                 (self.player_color == chess.BLACK and chess.square_rank(square) == 0)):
                 move = chess.Move(self.selected_square, square, promotion=chess.QUEEN)
-            
+
             if move in self.ai.board.legal_moves:
                 self.ai.board.push(move)
                 self.status_text = "Thinking..."
@@ -300,7 +307,7 @@ class ChessGUI:
                 piece = self.ai.board.piece_at(square)
                 if piece and piece.color == self.player_color:
                     self.selected_square = square
-                    self.possible_moves = [move.to_square for move in self.ai.board.legal_moves 
+                    self.possible_moves = [move.to_square for move in self.ai.board.legal_moves
                                          if move.from_square == square]
                 else:
                     self.selected_square = None
@@ -333,12 +340,15 @@ class ChessGUI:
             winner = "White" if not self.ai.board.turn else "Black"
             self.status_text = f"Checkmate! {winner} wins"
             self.show_game_over_message(f"Checkmate! {winner} wins")
+            self.new_game()
         elif self.ai.board.is_stalemate():
             self.status_text = "Stalemate!"
             self.show_game_over_message("Stalemate!")
+            self.new_game()
         elif self.ai.board.is_insufficient_material():
             self.status_text = "Draw by insufficient material!"
             self.show_game_over_message("Draw by insufficient material!")
+            self.new_game()
         elif self.ai.board.is_check():
             self.status_text = "Check! " + ("White" if self.ai.board.turn else "Black") + " to move"
 
@@ -408,7 +418,7 @@ class ChessGUI:
                 elif event.type == MOUSEBUTTONDOWN:
                     if event.button == 1:
                         self.handle_click(event.pos)
-            
+
             self.draw_board()
             pygame.display.update()
 
@@ -419,9 +429,9 @@ class ChessGUI:
             elif self.need_ai_move:
                 pygame.time.wait(100)
                 self.make_ai_move()
-            
+
             self.update_game_status()
             self.clock.tick(60)
-        
+
         pygame.quit()
         sys.exit()
