@@ -76,7 +76,7 @@ class ChessGUI:
 
         # Tải hình ảnh quân cờ từ file
         try:
-            pieces_image = pygame.image.load("D:/ChessAI/assets/images/Chess_Pieces.png")
+            pieces_image = pygame.image.load("assets/images/Chess_Pieces.png")
 
             # Kích thước mỗi quân cờ trong ảnh
             piece_width = pieces_image.get_width() // 6  # 6 quân cờ
@@ -178,7 +178,7 @@ class ChessGUI:
         buttons = [
             (self.new_game_btn, "New game"),
             (self.switch_sides_btn, "Switch sides"),
-            (self.difficulty_btn, f"Diff: {self.difficulty[0]}"),  # Chỉ hiển thị ký tự đầu
+            (self.difficulty_btn, f"Diff: {self.difficulty}"),
             (self.stockfish_btn, f"SF: {'On' if self.use_stockfish else 'Off'}"),
             (self.stockfish_battle_btn, "VS Stockfish")
         ]
@@ -373,7 +373,7 @@ class ChessGUI:
             self.ai.set_stockfish_strength(15)  # Stockfish khó
         elif self.difficulty == "Very Hard":
             self.ai.depth = 5
-            self.ai.set_stockfish_strength(15)  # Stockfish rất khó
+            self.ai.set_stockfish_strength(20)  # Stockfish rất khó
 
         self.status_text = f"Difficulty set: {self.difficulty}"
 
