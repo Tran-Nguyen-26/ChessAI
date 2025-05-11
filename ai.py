@@ -128,28 +128,6 @@ class ChessAI:
         self.killer_moves = {}
         self.eval_cache = {}
 
-    def set_board_from_fen(self, fen):
-        try:
-            self.board = chess.Board(fen)
-            self.transposition_table = {}
-            self.killer_moves = {}
-            self.eval_cache = {}
-            return True
-        except ValueError:
-            return False
-
-    def make_move(self, move):
-        try:
-            if isinstance(move, str):
-                move = chess.Move.from_uci(move)
-            if move in self.board.legal_moves:
-                self.board.push(move)
-                return True
-            return False
-        except Exception as e:
-            print(f"Error making move: {e}")
-            return False
-
     def get_ai_move(self):
         if self.use_stockfish_as_opponent and self.board.turn == chess.BLACK:
             return self._get_stockfish_move(1000)
