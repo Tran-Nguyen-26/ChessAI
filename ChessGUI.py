@@ -271,17 +271,24 @@ class ChessGUI:
         if self.ai_vs_stockfish_mode:
             # Bật chế độ AI vs Stockfish
             self.ai.toggle_ai_vs_stockfish(True)
-            self.player_color = None  # Vô hiệu hóa tương tác người chơi
+            self.player_color = None  # Vô hiệu hóa người chơi
             self.status_text = "Chế độ AI vs Stockfish - Đang chạy..."
-            # Kích hoạt nước đi ngay lập tức
-            self.need_ai_move = True  # Thêm dòng này để kích hoạt AI
+            
+            # Đảm bảo bàn cờ mới
+            self.ai.reset_board()
+            
+            # Kích hoạt ngay lượt đi đầu tiên
+            self.need_ai_move = True
+            pygame.time.set_timer(USEREVENT + 1, 300)  # Delay ngắn để bắt đầu
         else:
             # Tắt chế độ
             self.ai.toggle_ai_vs_stockfish(False)
             self.player_color = chess.WHITE
             self.status_text = "Chế độ người chơi vs AI"
         
-        self.new_game()
+        # Reset trạng thái chọn quân
+        self.selected_square = None
+        self.possible_moves = []
 
     def adjust_stockfish_level(self):
         """Điều chỉnh level của Stockfish"""
@@ -300,18 +307,19 @@ class ChessGUI:
         if self.ai.board.is_game_over():
             self.update_game_status()
             return
-            
+        
+        print(f"Đang tính nước đi cho {'AI' if self.ai.board.turn == self.ai.ai_color else 'Stockfish'}")
+        
         ai_move = self.ai.get_ai_move()
         if ai_move:
+            print(f"Nước đi được chọn: {ai_move.uci()}")
             self.ai.board.push(ai_move)
-            
-            # Debug: In nước đi ra console
-            print(f"{'AI' if self.ai.ai_color == self.ai.board.turn else 'Stockfish'} đi: {ai_move.uci()}")
             
             # Cập nhật thông báo
             if self.ai_vs_stockfish_mode:
                 player = "AI" if self.ai.board.turn != self.ai.ai_color else "Stockfish"
                 self.status_text = f"{player} đã đi: {ai_move.uci()}"
+                print(f"Trạng thái bàn cờ:\n{self.ai.board}")
             else:
                 self.status_text = f"AI đã đi: {ai_move.uci()}"
         
@@ -392,19 +400,19 @@ class ChessGUI:
                 elif event.type == MOUSEBUTTONDOWN:
                     if event.button == 1:  # Nút chuột trái
                         self.handle_click(event.pos)
-                # Thêm xử lý sự kiện hẹn giờ
                 elif event.type == USEREVENT + 1:
-                    self.make_ai_move()
-                    pygame.time.set_timer(USEREVENT + 1, 0)  # Tắt hẹn giờ
+                    if self.ai_vs_stockfish_mode or self.need_ai_move:
+                        self.make_ai_move()
+                    pygame.time.set_timer(USEREVENT + 1, 0)  # Tắt timer sau khi xử lý
             
             self.draw_board()
             pygame.display.update()
             
-            # Tự động kích hoạt nước đi trong chế độ AI vs Stockfish
-            if self.ai_vs_stockfish_mode and not self.ai.board.is_game_over():
-                if not self.need_ai_move:
+            # Tự động kích hoạt nước đi nếu cần
+            if not self.ai.board.is_game_over():
+                if self.ai_vs_stockfish_mode and not self.need_ai_move:
                     self.need_ai_move = True
-                    pygame.time.set_timer(USEREVENT + 1, 500)  # Hẹn giờ 500ms
+                    pygame.time.set_timer(USEREVENT + 1, 500)  # Delay giữa các nước đi
             
             self.clock.tick(30)
         

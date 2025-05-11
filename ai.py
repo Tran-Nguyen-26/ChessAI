@@ -150,24 +150,20 @@ class ChessAI:
     def get_ai_move(self):
         """Lấy nước đi cho AI, có thể là AI thuật toán hoặc Stockfish tùy chế độ"""
         if self.ai_vs_stockfish_mode:
-            # Debug: In trạng thái lượt đi
-            print(f"Lượt đi: {'AI' if self.board.turn == self.ai_color else 'Stockfish'}")
-            
+            print(f"Đến lượt: {'AI' if self.board.turn == self.ai_color else 'Stockfish'}")
             if self.board.turn == self.ai_color:
-                # AI thuật toán đi
+                # AI thuật toán
                 move = self._get_algorithm_move()
-                print(f"AI chọn nước: {move}")
+                print(f"AI chọn: {move}")
                 return move
             else:
-                # Stockfish đi
-                if not self.stockfish.stockfish_process:
-                    print("Lỗi: Không kết nối được với Stockfish!")
-                    return random.choice(list(self.board.legal_moves))
-                move = self.stockfish.get_move(self.board, 1000)
-                print(f"Stockfish chọn nước: {move}")
-                return move
-        else:
-            return self._get_algorithm_move()
+                # Stockfish
+                if self.stockfish and self.stockfish.stockfish_process:
+                    move = self.stockfish.get_move(self.board, 1000)
+                    print(f"Stockfish chọn: {move}")
+                    return move
+                return random.choice(list(self.board.legal_moves))
+        return self._get_algorithm_move()
 
 
     def _get_algorithm_move(self):
