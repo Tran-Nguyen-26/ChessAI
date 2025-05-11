@@ -36,28 +36,30 @@ Dự án này xây dựng một hệ thống chơi cờ vua sử dụng trí tu�
   python main.py
 
 ## 📁 Cấu trúc thư mục
+<pre>
 ChessAI/
 │
-├── __pycache__/               # File biên dịch tự động của Python
-│   ├── ChessGUI.cpython-312.pyc
-│   ├── ChessGUI.cpython-313.pyc
-│   ├── ai.cpython-312.pyc
-│   └── ai.cpython-313.pyc
+├── __pycache__/               # File biên dịch tự động của Python
+│   ├── ChessGUI.cpython-312.pyc
+│   ├── ChessGUI.cpython-313.pyc
+│   ├── ai.cpython-312.pyc
+│   └── ai.cpython-313.pyc
 │
-├── assets/                    # Tài nguyên đa phương tiện
-│   ├── images/                # Thư mục chứa hình ảnh
-│   │   └── Chess_Pieces.png   # Hình ảnh quân cờ
-│   └── sounds/                # Thư mục chứa âm thanh
-│       └── move_piece.mp3     # Âm thanh khi đi quân
+├── assets/                    # Tài nguyên đa phương tiện
+│   ├── images/               # Thư mục chứa hình ảnh
+│   │   └── Chess_Pieces.png   # Hình ảnh quân cờ
+│   └── sounds/               # Thư mục chứa âm thanh
+│       └── move_piece.mp3     # Âm thanh khi đi quân
 │
-├── engines/                   # Engine cờ vua bên ngoài
-│   └── stockfish/             # Thư mục chứa file thực thi Stockfish
-│       └── stockfish          # File thực thi Stockfish
+├── engines/                  # Engine cờ vua bên ngoài
+│   └── stockfish/            # Thư mục chứa file thực thi Stockfish
+│       └── stockfish          # File thực thi Stockfish
 │
-├── ChessGUI.py                # Giao diện người dùng (GUI) chính
-├── ai.py                      # Thuật toán AI (minimax, alpha-beta, đánh giá cờ)
-├── main.py                    # File khởi chạy chính của chương trình
-└── README.md                  # Tài liệu mô tả dự án
+├── ChessGUI.py                # Giao diện người dùng (GUI) chính
+├── ai.py                      # Thuật toán AI (minimax, alpha-beta, đánh giá cờ)
+├── main.py                    # File khởi chạy chính của chương trình
+└── README.md                  # Tài liệu mô tả dự án
+</pre>
 
 ## 🎥 Link video demo
-https://drive.google.com/file/d/1GPocG0bHH7V2hyUsDxHW3qoRM2qh_vzt/view?usp=drive_link
+https://drive.google.com/file/d/18iVR4hBUICSh-szEcUKuqSkL-I6DMA5q/view?usp=sharing
