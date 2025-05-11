@@ -119,7 +119,7 @@ class ChessAI:
             chess.KING: KING_VALUE
         }
         
-        # Opening book - simplified but effective
+        # Chứa các nước đi khai cuộc. Các chuỗi sử dụng định dạng FEN
         self.opening_book = {
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -": ["e2e4", "d2d4", "c2c4", "g1f3"],  # Common white openings
             "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3": ["e7e5", "c7c5", "e7e6", "c7c6"],  # Replies to e4
@@ -133,29 +133,6 @@ class ChessAI:
         self.history_table = {}
         self.killer_moves = [[None, None] for _ in range(100)]
         
-    def set_board_from_fen(self, fen):
-        """Set board from FEN notation"""
-        try:
-            self.board = chess.Board(fen)
-            self.transposition_table = {}
-            self.history_table = {}
-            self.killer_moves = [[None, None] for _ in range(100)]
-            return True
-        except ValueError:
-            return False
-    
-    def make_move(self, move):
-        """Make a move on the board"""
-        try:
-            if isinstance(move, str):
-                move = chess.Move.from_uci(move)
-            if move in self.board.legal_moves:
-                self.board.push(move)
-                return True
-            return False
-        except Exception as e:
-            print(f"Error making move: {e}")
-            return False
     
     def get_ai_move(self):
 
@@ -170,16 +147,16 @@ class ChessAI:
             print(f"Using opening book move: {book_move}")
             return book_move
         
-        # If there's only one legal move, play it immediately
+        # Nếu chỉ có một nước đi hợp pháp thì trả ngay về nước đi đó
         legal_moves = list(self.board.legal_moves)
         if len(legal_moves) == 1:
             return legal_moves[0]
         
-        # Set starting best move to avoid None results
+        # Gán nước đi tốt nhất là nước đi đầu tiên để tránh bị None
         if legal_moves:
             self.best_move_found = legal_moves[0]
         
-        # Iterative deepening with adaptive depth
+        #Trả về độ sâu thích hợp
         max_depth = self._calculate_adaptive_depth()
         
         for current_depth in range(1, max_depth + 1):
@@ -187,13 +164,16 @@ class ChessAI:
             
             # Check if time limit is exceeded
             if time.time() - self.start_time > self.time_limit * 0.8 or self.stop_search:
+                #Tính 80% của giới hạn thời gian. Việc kiểm tra sớm hơn một chút (ở 80% thay vì 100%) giúp công cụ có thời gian 
+                # "thoát" khỏi quá trình tìm kiếm ở độ sâu hiện tại một cách gọn gàng và 
+                # trả về nước đi tốt nhất đã tìm thấy cho đến lúc đó, thay vì đột ngột bị cắt ngang.
                 print(f"Time limit approaching/reached after depth {current_depth}")
                 break
                 
         elapsed_time = time.time() - self.start_time
         print(f"Searched {self.nodes_searched} nodes in {elapsed_time:.2f} seconds")
         
-        # Fallback to a random move if no best move was found (shouldn't happen)
+        # Trường hợp không tìm được nước đi nào tốt nhất thì chọn random
         if self.best_move_found is None and legal_moves:
             print("Warning: No best move found, selecting random move")
             self.best_move_found = random.choice(legal_moves)
@@ -201,13 +181,13 @@ class ChessAI:
         return self.best_move_found
     
     def _check_opening_book(self):
-        """Check if current position is in opening book"""
+        #Lấy trạng thái bàn cờ dưới dạng chuỗi FEN
         fen = self.board.fen()
-        # Check if exact position is in book
+        #Kiểm trạng thái có trong từ điển opening_book không
         if fen in self.opening_book:
-            return chess.Move.from_uci(random.choice(self.opening_book[fen]))
+            return chess.Move.from_uci(random.choice(self.opening_book[fen])) #Trả về các nước đi ngẫu nhiên opening_book
         
-        # Check simplified position (just board position and side to move)
+        # Tạo một chuỗi FEN đơn giản hóa từ chuỗi FEN đầy đủ.
         simplified_fen = ' '.join(fen.split(' ')[:2])
         for book_fen in self.opening_book:
             if book_fen.startswith(simplified_fen):
@@ -217,30 +197,29 @@ class ChessAI:
     
     def _calculate_adaptive_depth(self):
         """Calculate adaptive search depth based on position complexity"""
-        # Get base depth from settings
+        # Lấy giá trị độ sâu cơ bản
         base_depth = self.depth
         
-        # Count pieces to estimate complexity
+        # Tính tổng số quân cờ của cả 2 bên
         total_pieces = sum(1 for _ in self.board.piece_map())
         
-        # Fewer pieces = can search deeper
+        #Nếu số quân <= 10 thì là tàn cuộc       
         if total_pieces <= 10:  # Endgame
-            return min(base_depth + 2, 8)
+            return min(base_depth + 2, 8) #Đảm bảo độ sâu không vượt quá 8
         elif total_pieces <= 20:  # Late middlegame
             return min(base_depth + 1, 7)
-        else:  # Opening/early middlegame
+        else:  
             return base_depth
     
     def _search_with_iterative_deepening(self, depth):
         """Perform search at a specific depth"""
-        alpha = float('-inf')
-        beta = float('inf')
-        best_score = float('-inf')
-        current_best_move = None
+        alpha = float('-inf') #Khởi tạo alpha là âm vô cùng
+        beta = float('inf') #Khởi tạo beta là âm vô cùng
+        best_score = float('-inf') #Khởi tạo best_score là âm vô cùng
         
         # For aspiration window - improves search efficiency
         if depth >= 3 and self.best_move_found:
-            # Get previous evaluation
+            # Lấy điểm đánh giá từ lần trước
             prev_eval = self._get_stored_evaluation()
             if prev_eval != float('inf'):
                 # Create aspiration window
@@ -250,8 +229,9 @@ class ChessAI:
                 
                 # Try search with aspiration window
                 score = self._alpha_beta(depth, alpha, beta, 0, True)
-                
-                # If score is outside window, retry with full window
+                #Tạo cửa sổ nguyện vọng để yêu cầu thuật toán alpha_beta chỉ tìm kiếm trong khoảng này
+
+                # Nếu nằm ngoài cửa sổ thì alpha, beta = - inf
                 if score <= alpha or score >= beta:
                     alpha = float('-inf')
                     beta = float('inf')
@@ -259,10 +239,9 @@ class ChessAI:
                     
                 best_score = score
             else:
-                # No previous evaluation, do full search
+                # Nếu không có đánh già lần trước làm full
                 best_score = self._alpha_beta(depth, alpha, beta, 0, True)
         else:
-            # Full window search for early depths
             best_score = self._alpha_beta(depth, alpha, beta, 0, True)
             
         if self.best_move_found:
