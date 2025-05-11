@@ -26,15 +26,31 @@ Dự án này xây dựng một hệ thống chơi cờ vua sử dụng trí tu�
 
 ## 🚀 Cách sử dụng
 
-1. Clone repo:
-   git clone https://github.com/Tran-Nguyen-26/ChessAI
-   cd ai-chess-project
-2 Cài đặt các thư viện cần thiết:
-  pip install pygame
-  pip install chess
-3 Khởi chạy chương trình:
-  python main.py
+1.  **Clone repository về máy của bạn:**
+    ```bash
+    git clone https://github.com/Tran-Nguyen-26/ChessAI.git
+    cd ChessAI
+    ```
+    *(Lưu ý: Tên thư mục sau khi clone sẽ là `ChessAI` chứ không phải `ai-chess-project` nếu dựa theo link repo của bạn).*
 
+2.  **Cài đặt các thư viện cần thiết:**
+    Mở terminal hoặc command prompt trong thư mục dự án (`ChessAI`) và chạy lệnh sau:
+    ```bash
+    pip install pygame python-chess
+    ```
+    *(Gói `python-chess` là tên chính thức trên PyPI cho thư viện `chess` bạn đang dùng).*
+
+    Hoặc, nếu bạn có file `requirements.txt` (khuyến khích nên có):
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **Khởi chạy chương trình:**
+    Vẫn trong thư mục dự án (`ChessAI`), chạy lệnh:
+    ```bash
+    python main.py
+    ```
+    
 ## 📁 Cấu trúc thư mục
 <pre>
 ChessAI/
