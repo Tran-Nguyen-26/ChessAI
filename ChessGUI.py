@@ -52,7 +52,7 @@ class ChessGUI:
         
         # Tải hình ảnh quân cờ từ file
         try:
-            pieces_image = pygame.image.load("ChessAI/assets/images/Chess_Pieces.png")
+            pieces_image = pygame.image.load("assets/images/Chess_Pieces.png")
             
             # Kích thước mỗi quân cờ trong ảnh
             piece_width = pieces_image.get_width() // 6  # 6 quân cờ
@@ -253,6 +253,7 @@ class ChessGUI:
                 
                 # Đánh dấu cần thực hiện nước đi AI
                 self.need_ai_move = True
+                pygame.time.set_timer(USEREVENT + 1, 300)
             else:
                 # Nếu nước đi không hợp lệ, chọn ô mới
                 piece = self.ai.board.piece_at(square)
