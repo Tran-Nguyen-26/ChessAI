@@ -4,8 +4,7 @@ import random
 import pygame
 import sys
 from pygame.locals import *
-
-# Giả định rằng module ai với ChessAI class đã được định nghĩa
+from stockfish import StockFish
 from ai import ChessAI
 
 class ChessGUI:
@@ -13,36 +12,47 @@ class ChessGUI:
         pygame.init()
         self.square_size = 80
         self.board_size = self.square_size * 8
-        self.margin = 40  # Lề cho việc hiển thị tọa độ
-        self.window_size = (self.board_size + self.margin * 2, self.board_size + self.margin * 2 + 60)  # Thêm không gian cho controls
-        
+        self.margin = 40
+
+        button_width = 100
+        button_height = 30
+        button_spacing = 10
+        start_x = self.margin
+        total_buttons_width = 5*(button_width + button_spacing) + 20 + 100
+        required_width = max(self.board_size + 2*self.margin, total_buttons_width + 2*self.margin)
+        self.window_size = (required_width, self.board_size + self.margin * 2 + 100)
+
         self.screen = pygame.display.set_mode(self.window_size)
         pygame.display.set_caption("Cờ vua đấu với AI")
-        
+
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Arial", 14)
         self.status_font = pygame.font.SysFont("Arial", 16)
-        
-        self.ai = ChessAI(depth=3)  # Khởi tạo AI với độ sâu mặc định
-        
+
+        self.ai = ChessAI(depth=3)
+        self.stockfish = StockFish(level=10)
         self.selected_square = None
         self.possible_moves = []
-        self.player_color = chess.WHITE  # Mặc định người chơi quân trắng
-        
-        self.status_text = "Mời bạn đi trước (Quân trắng)"
-        self.difficulty = "Trung bình"
-        
-        # Tải hình ảnh quân cờ
+        self.player_color = chess.WHITE
+
+        self.status_text = "Your Turn (White Pieces)"
+        self.difficulty = "Medium"
+        self.ai_thinking_time = 0
+
         self.load_images()
-        
-        # Tạo các button
-        self.new_game_btn = pygame.Rect(self.margin, self.board_size + self.margin + 20, 100, 30)
-        self.switch_sides_btn = pygame.Rect(self.margin + 120, self.board_size + self.margin + 20, 100, 30)
-        self.difficulty_btn = pygame.Rect(self.margin + 240, self.board_size + self.margin + 20, 120, 30)
-        
-        # Vòng lặp chính của game
+
+        self.new_game_btn = pygame.Rect(start_x, self.board_size + self.margin + 20, button_width, button_height)
+        self.switch_sides_btn = pygame.Rect(start_x + button_width + button_spacing, self.board_size + self.margin + 20, button_width, button_height)
+        self.difficulty_btn = pygame.Rect(start_x + 2*(button_width + button_spacing), self.board_size + self.margin + 20, button_width, button_height)
+
         self.running = True
         self.need_ai_move = False
+
+        self.stockfish_battle_btn = pygame.Rect(start_x + 3*(button_width + button_spacing), self.board_size + self.margin + 20, button_width + 20, button_height)
+        self.stockfish_slider = pygame.Rect(start_x + 4*(button_width + button_spacing) + 20, self.board_size + self.margin + 20, 100, button_height)
+        self.stockfish_battle_mode = False
+        self.stockfish_level = 10
+        self.last_ai_move_time = 0
         
     def load_images(self):
         """Tải hình ảnh các quân cờ"""
@@ -143,22 +153,33 @@ class ChessGUI:
                 if piece_symbol in self.piece_images:
                     self.screen.blit(self.piece_images[piece_symbol], (x, y))
         
-        # Vẽ các button
-        pygame.draw.rect(self.screen, (200, 200, 200), self.new_game_btn)
-        pygame.draw.rect(self.screen, (200, 200, 200), self.switch_sides_btn)
-        pygame.draw.rect(self.screen, (200, 200, 200), self.difficulty_btn)
+        buttons = [
+            (self.new_game_btn, "New game"),
+            (self.switch_sides_btn, "Switch sides"),
+            (self.difficulty_btn, f"Diff: {self.difficulty}"),
+            (self.stockfish_battle_btn, "VS Stockfish")
+        ]
         
-        # Vẽ text cho các button
-        new_game_text = self.font.render("Game mới", True, (0, 0, 0))
-        switch_sides_text = self.font.render("Đổi bên", True, (0, 0, 0))
-        difficulty_text = self.font.render(f"Độ khó: {self.difficulty}", True, (0, 0, 0))
-        
-        self.screen.blit(new_game_text, (self.new_game_btn.x + 10, self.new_game_btn.y + 8))
-        self.screen.blit(switch_sides_text, (self.switch_sides_btn.x + 10, self.switch_sides_btn.y + 8))
-        self.screen.blit(difficulty_text, (self.difficulty_btn.x + 10, self.difficulty_btn.y + 8))
+        for rect, text in buttons:
+            pygame.draw.rect(self.screen, (200, 200, 200), rect)
+            btn_text = self.font.render(text, True, (0, 0, 0))
+            self.screen.blit(btn_text, (rect.x + 10, rect.y + 8))
+
+        if self.stockfish_battle_mode:
+            pygame.draw.rect(self.screen, (200, 200, 200), self.stockfish_slider)
+            pygame.draw.rect(self.screen, (100, 100, 255), 
+                            (self.stockfish_slider.x + (self.stockfish_level-1)*5, 
+                            self.stockfish_slider.y, 
+                            10, self.stockfish_slider.h))
+            level_text = self.font.render(f"Lvl: {self.stockfish_level}", True, (0, 0, 0))
+            self.screen.blit(level_text, (self.stockfish_slider.x + 40, self.stockfish_slider.y + 8))
+
+        if self.stockfish_battle_mode:
+            mode_text = self.font.render("Mode: Internal AI vs Stockfish", True, (0, 100, 0))
+            self.screen.blit(mode_text, (self.margin, self.board_size + self.margin + 60))
         
         # Vẽ trạng thái
-        status_text = self.status_font.render(self.status_text, True, (0, 0, 0))
+        status_text = self.status_font.render(f"{self.status_text} (AI Time: {self.ai_thinking_time:.2f}s)", True, (0, 0, 0))
         self.screen.blit(status_text, (self.margin, self.margin // 2))
     
     def handle_click(self, pos):
@@ -175,7 +196,10 @@ class ChessGUI:
         elif self.difficulty_btn.collidepoint(x, y):
             self.cycle_difficulty()
             return
-        
+        elif self.stockfish_battle_btn.collidepoint(x, y):
+            self.stockfish_battle_mode = not self.stockfish_battle_mode
+            self.new_game()
+            return
         # Kiểm tra nếu click vào bàn cờ
         if x < self.margin or x > self.board_size + self.margin or y < self.margin or y > self.board_size + self.margin:
             return
@@ -230,17 +254,34 @@ class ChessGUI:
                     self.possible_moves = []
     
     def make_ai_move(self):
-        """Để AI thực hiện nước đi"""
         if self.ai.board.is_game_over():
             return
-            
-        # Lấy nước đi từ AI
-        ai_move = self.ai.get_ai_move()
-        if ai_move:
-            self.ai.board.push(ai_move)
-            move_text = ai_move.uci()
-            self.status_text = f"AI đã đi: {move_text}. Đến lượt bạn."
-        
+
+        start_time = time.time()
+
+        if self.stockfish_battle_mode:
+            if self.ai.board.turn == chess.WHITE:
+                move = self.ai.get_ai_move()
+                self.stockfish.set_board_from_fen(self.ai.board.fen())
+            else:
+                move = self.stockfish.get_move(thinking_time=0.1)
+                self.ai.set_board_from_fen(self.stockfish.board.fen())
+        else:
+            move = self.ai.get_ai_move()
+
+        self.ai_thinking_time = time.time() - start_time
+
+        if move:
+            self.ai.board.push(move)
+            if self.stockfish_battle_mode:
+                self.stockfish.board.push(move)
+
+            move_text = move.uci()
+            if self.stockfish_battle_mode:
+                self.status_text = f"Move: {move_text}"
+            else:
+                self.status_text = f"AI played: {move_text}. Your turn."
+
         self.need_ai_move = False
         self.update_game_status()
     
@@ -292,48 +333,47 @@ class ChessGUI:
     
     def cycle_difficulty(self):
         """Thay đổi độ khó theo chu kỳ"""
-        difficulties = ["Dễ", "Trung bình", "Khó", "Rất khó"]
+        difficulties = ["Easy", "Medium", "Hard", "Very Hard"]
         current_index = difficulties.index(self.difficulty)
         next_index = (current_index + 1) % len(difficulties)
         self.difficulty = difficulties[next_index]
         
         # Cập nhật độ sâu cho AI
-        if self.difficulty == "Dễ":
+        if self.difficulty == "Easy":
             self.ai.depth = 2
-        elif self.difficulty == "Trung bình":
+        elif self.difficulty == "Medium":
             self.ai.depth = 3
-        elif self.difficulty == "Khó":
+        elif self.difficulty == "Hard":
             self.ai.depth = 4
-        elif self.difficulty == "Rất khó":
+        elif self.difficulty == "Very Hard":
             self.ai.depth = 5
         
         self.status_text = f"Đã đặt độ khó: {self.difficulty}"
-    
+
     def run(self):
-        """Vòng lặp chính của game"""
+        ai_move_delay = 500
         while self.running:
-            # Xử lý các sự kiện
+            current_time = pygame.time.get_ticks()
             for event in pygame.event.get():
                 if event.type == QUIT:
                     self.running = False
                 elif event.type == MOUSEBUTTONDOWN:
-                    if event.button == 1:  # Nút chuột trái
+                    if event.button == 1:
                         self.handle_click(event.pos)
             
-            # Vẽ bàn cờ
             self.draw_board()
             pygame.display.update()
-            
-            # Kiểm tra nếu cần AI đi
-            if self.need_ai_move:
-                pygame.time.wait(500)  # Chờ một chút để người chơi thấy được nước đi của họ
+
+            if self.stockfish_battle_mode and not self.ai.board.is_game_over():
+                if current_time - self.last_ai_move_time > ai_move_delay:
+                    self.make_ai_move()
+                    self.last_ai_move_time = current_time
+            elif self.need_ai_move:
+                pygame.time.wait(100)
                 self.make_ai_move()
             
-            # Cập nhật trạng thái game
             self.update_game_status()
-            
-            # Giới hạn FPS
-            self.clock.tick(30)
+            self.clock.tick(60)
         
         pygame.quit()
         sys.exit()
