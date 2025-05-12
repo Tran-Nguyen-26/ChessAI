@@ -638,15 +638,21 @@ class ChessGUI:
                         if self.game_state == "START_SCREEN":
                             self.handle_start_screen_click(event.pos)
                         elif self.game_state == "PLAYING":
+                            # Xử lý click khi đang chơi
+                            old_need_ai_move = self.need_ai_move
                             self.handle_click(event.pos)
+                            
+                            # Nếu trạng thái chuyển từ lượt người chơi sang lượt AI, cập nhật ngay giao diện
+                            if not old_need_ai_move and self.need_ai_move:
+                                self.draw_board()
+                                self.update_game_status()
+                                pygame.display.update()
                         elif self.game_state == "INSTRUCTIONS":
                             self.handle_instruction_screen_click(event.pos)
                 elif event.type == KEYDOWN:  # Optional: ESC to go to start screen
                     if event.key == K_ESCAPE:
                         if self.game_state == "PLAYING" or self.game_state == "INSTRUCTIONS":
                             self.game_state = "START_SCREEN"
-                        # elif self.game_state == "START_SCREEN": # Optional: ESC on start screen quits
-                        #     self.running = False
 
             if self.game_state == "START_SCREEN":
                 self.draw_start_screen()
@@ -658,19 +664,28 @@ class ChessGUI:
                 if not self.ai.board.is_game_over():
                     if self.stockfish_battle_mode:
                         if current_time - self.last_ai_move_time > ai_vs_ai_delay:
+                            # Cập nhật giao diện trước khi AI di chuyển
+                            self.status_text = "AI is thinking..."
+                            self.draw_board()
+                            pygame.display.update()
+                            
+                            # Thực hiện nước đi của AI
                             self.make_ai_move()
-                            self.last_ai_move_time = current_time  # Reset timer after move
+                            self.last_ai_move_time = current_time
                     elif self.need_ai_move:  # Player vs AI, AI's turn
-                        # pygame.time.wait(50) # Small non-blocking delay might be better
+                        # Cập nhật giao diện để hiển thị trạng thái "AI đang suy nghĩ"
+                        self.status_text = "AI is thinking..."
+                        self.draw_board()
+                        pygame.display.update()
+                        
+                        # Thực hiện nước đi của AI
                         self.make_ai_move()
-                # update_game_status is called within make_ai_move and after player move (implicitly via game over check)
-                # but also good to have it here for general status updates like "Check!"
-                if not self.ai.board.is_game_over() and not self.need_ai_move:  # If it's player's turn or game just started
+                
+                # Cập nhật trạng thái game
+                if not self.ai.board.is_game_over() and not self.need_ai_move:
                     self.update_game_status()
 
             pygame.display.update()
             self.clock.tick(60)
 
         pygame.quit()
-        # sys.exit() # sys.exit() can be problematic if this is imported as a module.
-        # pygame.quit() handles cleanup.
